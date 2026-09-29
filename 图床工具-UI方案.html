@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图床工具 · UI 方案（界面 / 组件 / 原型）</title>
+<style>
+/* ========== 设计令牌 Design Tokens —— 主题「晴空蓝 × 夕照金」（京阿尼·柔光水彩调）==========
+   色调法：京阿尼式赛璐璐（cel shading）+ 水彩空气感 ——
+   ①去浊：拒绝灰褐/土黄/橄榄等写实中间调，每色都带明确色相
+   ②彩度阴影：暗部不是灰，是底色的低明度版（偏蓝/紫）；投影同理，用 --c-shadow 彩色柔影取代死黑
+   ③高光留白：亮部保持纯白不掺灰；页面顶部再叠一层白雾柔光（逆光空气）
+   ④柔化降饱和：主色 S 压到 45~55%、L 提到 50~65% —— 宁可“淡”，不要“艳”
+   ⑤空气透视：底色降饱和并偏青/偏粉，--c-bg → --c-bg-2 做浅渐变，制造纵深
+   ⑥亮色分离：--c-primary 守住按钮白字对比度 ≥3:1，装饰/插画另用 --c-primary-vivid 提亮
+   ⑦轮廓柔化：描边更淡、圆角更圆（+2~4），边界不割手 */
+:root{
+  /* 颜色（京阿尼化：取自照片的色相，提纯去浊 + 降饱和提明度）*/
+  --c-primary:#4E93C0;        /* 主色·柔晴空蓝（S 66→45，白字对比 3.35:1）*/
+  --c-primary-hover:#3C7BA6;  /* 柔深海蓝 */
+  --c-primary-soft:#E8F4FB;   /* 柔晨光蓝（纱帘高光）*/
+  --c-primary-mist:#F3F9FD;   /* 雾蓝：大面积底/分区底纹，比 soft 再淡一档 */
+  --c-primary-vivid:#8ACFEE;  /* 柔晴空亮蓝：仅装饰/插画/缩略图，不做按钮底（对比不足）*/
+  --c-accent:#FFC978;         /* 强调·柔夕照金（奶油感，去土味）*/
+  --c-success:#6BD9B4;        /* 成功·柔新绿 */
+  --c-danger:#FF8B96;         /* 危险·柔朱樱红 */
+  --c-bg:#EDF4FA;             /* 页面底·柔光白（亮度约 244，与纯白差 11 级，白卡浮得起来）*/
+  --c-bg-2:#E4EEF8;           /* 页面底渐变下端（比 bg 深 6 级，制造空气纵深）*/
+  --c-surface:#FFFFFF;        /* 卡片面·纯白高光 */
+  --c-border:#DCE9F5;         /* 描边·柔雾蓝（比旧值更淡，边界不硬）*/
+  --c-text:#3E5670;           /* 正文·柔深蓝影（提亮去黑，对白 7.5:1）*/
+  --c-text-2:#6B85A2;         /* 次级·柔靛蓝灰 */
+  --c-text-3:#93B1CC;         /* 辅助·柔浅青灰 */
+  --c-shadow:90,130,170;      /* 投影 RGB：彩色柔影（雾蓝），取代 rgba(0,0,0,.06) 的死黑 */
+  /* 圆角（京阿尼的圆润：整体比旧值 +2~4）*/
+  --r-sm:8px; --r-md:14px; --r-lg:20px; --r-full:999px;
+  /* 间距（4 的倍数）*/
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
+  --sp-5:20px; --sp-6:24px; --sp-8:32px;
+  /* 阴影：写死在 :root 的静态值只作兜底；真正的彩色柔影在 body{} 里用 var(--c-shadow) 现算，
+     这样切换主题时投影会跟着换色相（同一元素上 var() 才取得到被主题覆盖后的值）*/
+  --shadow-1:0 2px 8px rgba(90,130,170,.10);
+  --shadow-2:0 8px 24px rgba(90,130,170,.14);
+
+  /* ===== Logo 主题化配色令牌（组件级，随主题覆盖）=====
+     命名规则：--logo-{部位}[-v{候选位}]
+       部位：bg 底版 / ink 前景图形 / accent 后层相片 / line 连接线·扫描线
+             / ring 光环与投影的 RGB 三元组（78,147,192，配合 rgba() 使用）
+     生效值：--logo-bg / --logo-accent / --logo-line / --logo-ring  ← 组件只消费这四个
+     候选位：--logo-bg-v2 / -v3 由主题声明，再由 body[data-logo="v2"] 提升为生效值
+     回退链：主题未匹配 → 用 :root 默认值(#4E93C0)；变量缺失 → 消费处 var() 第二参数兜底
+     新增主题：复制下面任意一段 body[data-theme="xxx"]，改这 12 个值即可，组件零改动 */
+  --logo-bg:#4E93C0;          /* 默认主题 Logo 底版（＝主色柔晴空蓝）*/
+  --logo-ink:#FFFFFF;         /* 前景图形（相片/箭头），三套主题统一纯白高光 */
+  --logo-accent:#A9DDF3;      /* 后层相片：主色亮化（柔赛璐璐亮部）*/
+  --logo-line:#FFC978;        /* 连接线 + 扫描线：柔夕照金点睛 */
+  --logo-ring:78,147,192;     /* 呼吸光环 / 投影 RGB，跟随底版 */
+  /* 默认主题内候选位 ②③ */
+  --logo-bg-v2:#8A7EB4;     --logo-accent-v2:#C4BBE4; --logo-line-v2:#FFC978; --logo-ring-v2:138,126,180;
+  --logo-bg-v3:#FFC978;     --logo-accent-v3:#FFE3B3; --logo-line-v3:#8A6A3A; --logo-ring-v3:255,201,120;
+  /* 注：v3 的 --logo-line 用暖褐 #8A6A3A 而非纯黑 —— 京阿尼式“褐色轮廓”，亮底上也不割眼 */
+}
+/* 候选位提升：② 主题中性色 / ③ 辅助色点睛
+   特异性说明：body[data-theme][data-logo] (0,2,1) 高于 body[data-theme] (0,1,1)，
+   所以「主题 + 候选位」组合时由候选位胜出；无主题时由 body[data-logo] (0,1,1) 生效。 */
+body[data-logo="v2"], body[data-theme][data-logo="v2"]{
+  /* 候选位令牌缺失时，回退到当前主题的生效值（而不是写死某个 hex）*/
+  --logo-bg:var(--logo-bg-v2, var(--logo-bg));          --logo-accent:var(--logo-accent-v2, var(--logo-accent));
+  --logo-line:var(--logo-line-v2, var(--logo-line));    --logo-ring:var(--logo-ring-v2, var(--logo-ring));
+}
+body[data-logo="v3"], body[data-theme][data-logo="v3"]{
+  --logo-bg:var(--logo-bg-v3, var(--logo-bg));          --logo-accent:var(--logo-accent-v3, var(--logo-accent));
+  --logo-line:var(--logo-line-v3, var(--logo-line));    --logo-ring:var(--logo-ring-v3, var(--logo-ring));
+}
+/* ========== 主题 A「柔群青 × 夕橙奶油」：取自照片1（雨棚蓝 + 窗框橙 + 米白墙）· 京阿尼化 ==========
+   底色策略：墙色只取明度不取色相 —— 米黄大面积铺会显脏，改为偏青的「青光白」，
+   让群青与夕橙在干净底上柔和对撞（#EDF2F9 亮度 243，与纯白差 12 级）。
+   柔化手法：群青 S 68→52、L 51→60；夕橙不再是高饱和橙，压成奶油橘 #FFA978。 */
+body[data-theme="klein"]{
+  /* A「柔群青 × 夕橙奶油」：雨棚蓝 → 柔群青（紫味群青 H222）；窗框橙 → 柔夕橙（H27）。 */
+  --c-primary:#6484CE; --c-primary-hover:#4B6DBD; --c-primary-soft:#E9EFFB;
+  --c-primary-mist:#F6F9FD;
+  --c-primary-vivid:#A4C1F4;
+  --c-accent:#FFA978; --c-success:#6FD4AA; --c-danger:#F4836F;
+  --c-bg:#EDF2F9; --c-bg-2:#E5EBF4; --c-border:#DEE5F0;
+  --c-text:#3E4A63; --c-text-2:#63718C; --c-text-3:#9FABC4;  /* 彩度阴影：柔蓝紫影，不用砖灰 */
+  --c-shadow:108,129,177;    /* 柔影带群青相，不落死黑 */
+  /* Logo 主题化配色：A1 柔群青底 + 夕橙连接线 */
+  --logo-bg:#6484CE; --logo-accent:#BFD5F7; --logo-line:#FFA978; --logo-ring:100,132,206;
+  --logo-bg-v2:#7975AA;   --logo-accent-v2:#B8B6E4; --logo-line-v2:#FFA978; --logo-ring-v2:121,117,170;
+  --logo-bg-v3:#FFA978;   --logo-accent-v3:#FFD1B3; --logo-line-v3:#FFFFFF; --logo-ring-v3:255,169,120;
+}
+/* ========== 主题 B「柔樱粉 × 若叶」：取自照片2（白衬衫 + 绣球粉 + 花园绿 + 暖白）· 京阿尼化 ==========
+   底色策略：暖白墙去黄 —— 定稿「樱白 #FAF1F4」：
+   ① 亮度 244，与纯白 Surface 拉开 11 级，白卡才浮得起来
+   ② 保留粉相归入樱粉同族，但去掉照片原色的黄味（原 #FAF6F0 黄相重且太亮）
+   柔化手法：玫樱 S 73→52；若叶绿压成薄荷感的 #86D9B4，粉绿对比由“撞”转“搭”。 */
+body[data-theme="cream"]{
+  /* B「柔樱粉 × 若叶」：绣球粉 → 柔樱粉；花园绿 → 柔若叶（去橄榄浊味）*/
+  --c-primary:#D37493; --c-primary-hover:#BE6280; --c-primary-soft:#FBEDF2;
+  --c-primary-mist:#FDF7F9;
+  --c-primary-vivid:#F5B3CC;
+  --c-accent:#86D9B4; --c-success:#86D9B4; --c-danger:#F58B8E;
+  --c-bg:#FAF1F4; --c-bg-2:#F6E9EF; --c-border:#F7E1E9;
+  --c-text:#63495E; --c-text-2:#8E718A; --c-text-3:#C6AAC0;  /* 彩度阴影：柔深紫影，不用暖褐 */
+  --c-shadow:175,120,145;    /* 柔影带樱相 */
+  /* Logo 主题化配色：B1 柔樱底 + 白色连接线（粉底深线会糊，故转白高光）*/
+  --logo-bg:#D37493; --logo-accent:#F8C9DC; --logo-line:#FFFFFF; --logo-ring:211,116,147;
+  --logo-bg-v2:#6E5468;   --logo-accent-v2:#C6A5CE; --logo-line-v2:#F8C9DC; --logo-ring-v2:110,84,104;
+  --logo-bg-v3:#86D9B4;   --logo-accent-v3:#C2EBDC; --logo-line-v3:#FFFFFF; --logo-ring-v3:134,217,180;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:"PingFang SC","Microsoft YaHei",-apple-system,sans-serif;
+  /* 京阿尼柔光：顶部一层白雾（逆光空气感）+ 上下浅渐变（--c-bg → --c-bg-2 的空气纵深）*/
+  background:
+    radial-gradient(1100px 460px at 16% -8%, rgba(255,255,255,.85), rgba(255,255,255,0) 68%),
+    linear-gradient(180deg, var(--c-bg) 0%, var(--c-bg-2) 100%);
+  background-attachment:fixed;
+  color:var(--c-text);
+  font-size:14px; line-height:1.5;
+  /* 彩色柔影在这里现算：同一元素上 var() 才取得到被 body[data-theme] 覆盖后的 --c-shadow
+     （写死在 :root 里的那份只是无主题时的兜底，不能拼变量，否则换主题不变色）*/
+  --shadow-1:0 2px 8px rgba(var(--c-shadow,90,130,170),.10);
+  --shadow-2:0 8px 24px rgba(var(--c-shadow,90,130,170),.14);
+}
+
+/* ========== 应用配色：容量进度条 + Toast（辅助色的实际落地） ========== */
+.usage{display:flex; align-items:center; gap:8px}
+.usage-bar{
+  width:120px; height:6px; border-radius:var(--r-full);
+  background:var(--c-primary-soft); overflow:hidden;
+}
+.usage-bar span{display:block; height:100%; border-radius:var(--r-full); background:var(--c-primary); transition:width .3s}
+.usage-bar.warn span{background:var(--c-danger)}
+.toast{
+  position:fixed; left:50%; bottom:32px; transform:translate(-50%,12px);
+  display:flex; align-items:center; gap:10px;
+  background:var(--c-surface); border:1px solid var(--c-border);
+  border-radius:var(--r-md); box-shadow:var(--shadow-2);
+  padding:12px 18px; font-size:13px; color:var(--c-text);
+  opacity:0; pointer-events:none; transition:all .18s ease-out; z-index:50;
+}
+.toast.show{opacity:1; transform:translate(-50%,0)}
+.toast .mark{
+  width:22px;height:22px;border-radius:var(--r-full); flex-shrink:0;
+  background:var(--c-accent); color:#fff; font-size:12px;
+  display:flex; align-items:center; justify-content:center;
+}
+/* ========== 应用外壳（对应草图红框 = 整个窗口） ========== */
+.app{
+  display:flex; height:100vh; min-width:860px;
+}
+
+/* ========== 左侧导航（对应草图绿线分隔的竖条） ========== */
+.sidebar{
+  width:72px; background:var(--c-surface);
+  border-right:1px solid var(--c-border);
+  display:flex; flex-direction:column; align-items:center;
+  padding:var(--sp-5) 0; gap:var(--sp-2);
+}
+.logo{
+  width:44px;height:44px;border-radius:14px; /* Discord 式 squircle 比例 */
+  margin-bottom:var(--sp-6); position:relative; overflow:hidden;
+  cursor:pointer; flex-shrink:0; transition:transform .15s, box-shadow .2s;
+  /* 投影同样主题化：rgba(var(--logo-ring), .28)，底版换色投影随之换色 */
+  box-shadow:0 2px 6px rgba(var(--logo-ring,78,147,192),.28);
+}
+/* —— Logo 全部组成部位统一消费主题令牌，无任何硬编码 ——
+   var() 第二参数为「变量缺失 / 主题加载失败」的双保险兜底值（默认配色 #4E93C0） */
+.logo .bg{fill:var(--logo-bg, #4E93C0)}          /* 底版 */
+.logo .ink-s{stroke:var(--logo-ink, #FFFFFF)}    /* 前景描边 */
+.logo .ink-f{fill:var(--logo-ink, #FFFFFF)}      /* 前景填充（前层相片）*/
+.logo .accent{fill:var(--logo-accent, #A9DDF3)}  /* 后层相片 */
+.logo .link{stroke:var(--logo-line, #FFC978)}    /* 连接线 */
+.logo .g-scan rect{fill:var(--logo-line, #FFC978)}   /* 扫描线（与连接线同色）*/
+.logo .g-up path{stroke:var(--logo-ink, #FFFFFF)}    /* 上传箭头 */
+/* 候选按钮（随主题动态渲染） */
+.chip.logo-var{cursor:pointer; font-family:inherit; color:var(--c-text-2); transition:all .18s ease-out}
+.chip.logo-var:hover{border-color:var(--c-primary); color:var(--c-primary)}
+.chip.logo-var.active{background:var(--c-primary); color:#fff; border-color:var(--c-primary); font-weight:600}
+.logo:hover{transform:scale(1.06)}
+.logo svg{width:100%;height:100%;display:block}
+/* —— 状态动效 —— */
+/* 扫描文件：白色扫描线上下扫 + 外圈呼吸光环 */
+.logo .g-scan{opacity:0}
+.logo.scanning{animation:ringPulse 1.2s ease-out infinite}
+.logo.scanning .g-scan{
+  opacity:1; animation:scanMove 1.2s ease-in-out infinite;
+}
+@keyframes scanMove{
+  0%,100%{transform:translateY(13px)}
+  50%{transform:translateY(24px)}
+}
+/* 呼吸光环同样消费 --logo-ring，换主题时连动效颜色一起换 */
+@keyframes ringPulse{
+  0%{box-shadow:0 0 0 0 rgba(var(--logo-ring,78,147,192),.45)}
+  100%{box-shadow:0 0 0 12px rgba(var(--logo-ring,78,147,192),0)}
+}
+/* 上传图片：箭头升腾 + 山形微沉（被"收进"相框）*/
+.logo .g-up{opacity:0}
+.logo.uploading .g-up{opacity:1; animation:rise 0.9s ease-in-out infinite}
+.logo.uploading .g-glyph{animation:settle 0.9s ease-in-out infinite}
+@keyframes rise{
+  0%{transform:translateY(4px);opacity:.2}
+  45%{transform:translateY(-1px);opacity:1}
+  100%{transform:translateY(-6px);opacity:0}
+}
+@keyframes settle{
+  0%,100%{transform:translateY(0)}
+  45%{transform:translateY(1.5px)}
+}
+.nav-item{
+  width:56px; padding:var(--sp-2) 0;
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+  border-radius:var(--r-md); cursor:pointer;
+  color:var(--c-text-2); font-size:12px;
+  transition:all .18s ease-out; border:none; background:none;
+}
+.nav-item .ico{width:22px;height:22px;display:block}
+.nav-item:hover{background:var(--c-primary-soft); color:var(--c-primary)}
+.nav-item.active{background:var(--c-primary-soft); color:var(--c-primary); font-weight:600}
+.sidebar .spacer{flex:1}
+.avatar{
+  width:36px;height:36px;border-radius:var(--r-full);
+  background:var(--c-primary-soft);color:var(--c-primary);
+  display:flex;align-items:center;justify-content:center;font-weight:600;
+}
+
+/* ========== 主区域 ========== */
+.main{flex:1; display:flex; flex-direction:column; overflow:hidden}
+.topbar{
+  height:56px; background:var(--c-surface);
+  border-bottom:1px solid var(--c-border);
+  display:flex; align-items:center; padding:0 var(--sp-6); gap:var(--sp-4);
+}
+.topbar h1{font-size:16px; font-weight:600}
+.topbar .crumb{color:var(--c-text-3); font-size:13px}
+.topbar .right{margin-left:auto; display:flex; gap:var(--sp-3); align-items:center}
+.content{flex:1; overflow:auto; padding:var(--sp-6)}
+
+/* ========== 视图一：文件放置（Drop Zone） ========== */
+.dropzone{
+  height:calc(100% - 0px); min-height:420px;
+  border:2px dashed var(--c-border);
+  border-radius:var(--r-lg); background:var(--c-surface);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:var(--sp-4); transition:all .2s; cursor:pointer;
+}
+.dropzone:hover,.dropzone.drag{
+  border-color:var(--c-primary); background:var(--c-primary-soft);
+}
+.dropzone .big-ico{
+  width:88px;height:88px;border-radius:var(--r-full);
+  background:var(--c-primary-soft); display:flex;align-items:center;justify-content:center;
+}
+.dropzone .big-ico svg{width:52px;height:52px}
+.dropzone h2{font-size:18px}
+.dropzone p{color:var(--c-text-2)}
+.btn{
+  padding:10px 24px; border-radius:var(--r-md); border:none;
+  font-size:14px; cursor:pointer; transition:all .18s ease-out; font-weight:500;
+}
+.btn-primary{background:var(--c-primary); color:#fff}
+.btn-primary:hover{background:var(--c-primary-hover)}
+.btn-ghost{background:none; color:var(--c-text-2); border:1px solid var(--c-border)}
+.btn-ghost:hover{color:var(--c-primary); border-color:var(--c-primary)}
+.hint{font-size:12px; color:var(--c-text-3)}
+
+/* ========== 视图二：管理 ========== */
+.stat-row{display:flex; gap:var(--sp-4); margin-bottom:var(--sp-5)}
+.stat-card{
+  flex:1; background:var(--c-surface); border-radius:var(--r-md);
+  padding:var(--sp-4) var(--sp-5); box-shadow:var(--shadow-1);
+}
+.stat-card .num{font-size:22px; font-weight:700; margin-top:4px}
+.stat-card .lbl{color:var(--c-text-2); font-size:13px}
+.toolbar{display:flex; gap:var(--sp-3); margin-bottom:var(--sp-4); align-items:center}
+.search{
+  flex:1; max-width:320px; padding:8px 12px;
+  border:1px solid var(--c-border); border-radius:var(--r-md);
+  background:var(--c-surface); color:var(--c-text-3);
+}
+.file-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:var(--sp-4)}
+.file-card{
+  background:var(--c-surface); border-radius:var(--r-md); overflow:hidden;
+  box-shadow:var(--shadow-1); transition:all .18s ease-out; cursor:pointer;
+  border:1px solid transparent;
+}
+.file-card:hover{box-shadow:var(--shadow-2); transform:translateY(-2px)}
+.file-thumb{
+  height:110px; display:flex;align-items:center;justify-content:center;
+  font-size:34px; color:#fff;
+  text-shadow:0 1px 3px rgba(var(--c-shadow,90,130,170),.45); /* 柔影压底，浅渐变上白图标也读得出 */
+}
+/* 缩略图四色＝各主题的「插画色板」，京阿尼水彩平涂：
+   深的一端为彩度阴影（低明度、带色相），浅的一端为高光侧（掺白，不是掺灰）*/
+.th1{background:linear-gradient(135deg,#B4E4F7,#4E93C0)}  /* 柔晴空 */
+.th2{background:linear-gradient(135deg,#B0EBD6,#6BD9B4)}  /* 柔新绿 */
+.th3{background:linear-gradient(135deg,#FFE3B8,#FFC978)}  /* 柔夕照金 */
+.th4{background:linear-gradient(135deg,#FFC0C7,#FF8B96)}  /* 柔朱樱 */
+body[data-theme="klein"] .th1{background:linear-gradient(135deg,#BFD5F7,#6484CE)} /* 柔群青 */
+body[data-theme="klein"] .th2{background:linear-gradient(135deg,#FFD1B3,#FFA978)} /* 夕橙奶油 */
+body[data-theme="klein"] .th3{background:linear-gradient(135deg,#D9DEEF,#8F96B4)} /* 柔暮蓝（砖地灰去浊，带蓝紫相）*/
+body[data-theme="klein"] .th4{background:linear-gradient(135deg,#6E6A94,#464563)} /* 柔暮紫（黑裙去浊，不压到近黑）*/
+body[data-theme="cream"] .th1{background:linear-gradient(135deg,#F8C9DC,#D37493)} /* 柔樱粉 */
+body[data-theme="cream"] .th2{background:linear-gradient(135deg,#C2EBDC,#86D9B4)} /* 柔若叶 */
+body[data-theme="cream"] .th3{background:linear-gradient(135deg,#FFE4EE,#F5B3CC)} /* 柔桃 */
+body[data-theme="cream"] .th4{background:linear-gradient(135deg,#D6EEF4,#A8D4DE)} /* 薄荷水 */
+.file-meta{padding:var(--sp-3)}
+.file-meta .name{font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.file-meta .row{display:flex; justify-content:space-between; margin-top:4px; font-size:12px; color:var(--c-text-3)}
+.tag{
+  font-size:11px; padding:1px 8px; border-radius:var(--r-full);
+  background:var(--c-primary-soft); color:var(--c-primary);
+}
+
+/* ========== 视图三：设置 ========== */
+.settings{max-width:640px}
+.set-card{
+  background:var(--c-surface); border-radius:var(--r-md);
+  padding:var(--sp-5); margin-bottom:var(--sp-4); box-shadow:var(--shadow-1);
+}
+.set-card h3{font-size:15px; margin-bottom:var(--sp-4)}
+.form-row{display:flex; align-items:center; margin-bottom:var(--sp-4)}
+.form-row:last-child{margin-bottom:0}
+.form-row label{width:150px; color:var(--c-text-2); flex-shrink:0; white-space:nowrap}
+.form-row input[type=text]{
+  flex:1; padding:8px 12px; border:1px solid var(--c-border);
+  border-radius:var(--r-sm); font-size:14px;
+}
+.form-row input[type=text]:focus{outline:none; border-color:var(--c-primary)}
+/* Toggle：36×20 胶囊，禁止被 flex 拉伸
+   注意：.switch 本身是 <label>，会被 ".form-row label{width:150px}" 命中，
+   所以这里必须用 .form-row .switch（优先级 0-2-0 > 0-1-1）才能覆盖宽度 */
+.form-row .switch{position:relative; width:36px; height:20px; margin-left:auto; flex-shrink:0}
+.switch input{display:none}
+.switch .track{
+  position:absolute; inset:0; background:var(--c-border);
+  border-radius:var(--r-full); cursor:pointer; transition:.2s;
+}
+.switch .track::after{
+  content:""; position:absolute; width:16px;height:16px;
+  border-radius:50%; background:#fff; top:2px; left:2px; transition:.2s;
+  box-shadow:var(--shadow-1);
+}
+.switch input:checked + .track{background:var(--c-primary)}
+.switch input:checked + .track::after{left:18px}
+
+/* ========== 组件标注页 ========== */
+.doc{max-width:860px}
+.token-row{display:flex; gap:var(--sp-3); flex-wrap:wrap; margin:var(--sp-3) 0}
+.chip{
+  display:flex; align-items:center; gap:8px;
+  background:var(--c-surface); border:1px solid var(--c-border);
+  border-radius:var(--r-md); padding:8px 14px; font-size:13px;
+}
+.chip-btn{cursor:pointer; font-family:inherit; color:var(--c-text-2); transition:all .18s ease-out}
+.chip-btn:hover{border-color:var(--c-primary); color:var(--c-primary)}
+.chip-btn.active{background:var(--c-primary); color:#fff; border-color:var(--c-primary); font-weight:600}
+.dot{width:16px;height:16px;border-radius:4px}
+.spec-list{margin:var(--sp-3) 0 0; padding-left:20px; color:var(--c-text-2); font-size:13px}
+.spec-list li{margin-bottom:6px}
+.doc h2{font-size:16px; margin:var(--sp-8) 0 var(--sp-3)}
+.doc h2:first-child{margin-top:0}
+.doc h3{
+  font-size:14px; font-weight:600; margin:var(--sp-5) 0 var(--sp-2);
+  color:var(--c-text); padding-left:10px; border-left:3px solid var(--c-primary);
+}
+code{
+  background:var(--c-bg); padding:1px 6px; border-radius:4px;
+  font-family:Consolas,monospace; font-size:12px; color:var(--c-danger);
+}
+.doc table{border-collapse:collapse; width:100%; margin:var(--sp-3) 0; font-size:12.5px}
+.doc th,.doc td{border:1px solid var(--c-border); padding:6px 10px; text-align:left}
+.doc th{background:var(--c-bg); font-weight:600; color:var(--c-text)}
+.doc td{color:var(--c-text-2)}
+.doc td code{background:transparent; padding:0; color:var(--c-text)}
+.doc pre{
+  background:var(--c-bg); border:1px solid var(--c-border); border-radius:var(--r-md);
+  padding:12px 14px; margin:var(--sp-3) 0; overflow-x:auto;
+  font-family:Consolas,monospace; font-size:12px; line-height:1.7; color:var(--c-text);
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ 图标库：参考 iconfont 插画方案（粗描边双色风）自绘 ═══
+     描边 #456B94 · 线宽 2/24 · 填充点缀 #C9E3F6 · 次级雾灰 #C3D5EC · 点睛琥珀 #FFC978 -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="i-upload" viewBox="0 0 24 24">
+    <rect x="3.5" y="11" width="17" height="9.5" rx="1.5" fill="#fff" stroke="#456B94" stroke-width="1.8"/>
+    <path d="M12 3.2v8.8M8.5 6.7 12 3.2l3.5 3.5" fill="none" stroke="#456B94" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="7" y="16.2" width="10" height="2.4" rx="1.2" fill="#C9E3F6"/>
+  </symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24">
+    <path d="M3.5 6.2A1.7 1.7 0 0 1 5.2 4.5h3.9l2.1 2.6h7.6a1.7 1.7 0 0 1 1.7 1.7v9.5a1.7 1.7 0 0 1-1.7 1.7H5.2a1.7 1.7 0 0 1-1.7-1.7z" fill="#fff" stroke="#456B94" stroke-width="1.8" stroke-linejoin="round"/>
+    <rect x="6.8" y="13.2" width="7.5" height="2.2" rx="1.1" fill="#C9E3F6"/>
+    <rect x="6.8" y="16.4" width="4.5" height="2.2" rx="1.1" fill="#C3D5EC"/>
+  </symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="5.4" fill="#fff" stroke="#456B94" stroke-width="1.8"/>
+    <circle cx="12" cy="12" r="1.9" fill="#C9E3F6"/>
+    <g stroke="#456B94" stroke-width="1.8" stroke-linecap="round">
+      <path d="M12 2.6v2.8"/><path d="M12 18.6v2.8"/>
+      <path d="M2.6 12h2.8"/><path d="M18.6 12h2.8"/>
+      <path d="M5.4 5.4l2 2"/><path d="M16.6 16.6l2 2"/>
+      <path d="M18.6 5.4l-2 2"/><path d="M7.4 16.6l-2 2"/>
+    </g>
+  </symbol>
+  <symbol id="i-search" viewBox="0 0 24 24">
+    <circle cx="10.5" cy="10.5" r="6.4" fill="#fff" stroke="#456B94" stroke-width="1.8"/>
+    <path d="M15.3 15.3l5 5" stroke="#456B94" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M7.3 9.2a3.6 3.6 0 0 1 2.6-2.4" fill="none" stroke="#C9E3F6" stroke-width="1.8" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="i-book" viewBox="0 0 24 24">
+    <path d="M4.5 5.2A1.7 1.7 0 0 1 6.2 3.5h5.3a2 2 0 0 1 2 2v14a1.8 1.8 0 0 0-1.8-1.8H6.2A1.7 1.7 0 0 1 4.5 16z" fill="#fff" stroke="#456B94" stroke-width="1.8" stroke-linejoin="round"/>
+    <path d="M19.5 5.2a1.7 1.7 0 0 0-1.7-1.7H12.5a2 2 0 0 0-2 2v14a1.8 1.8 0 0 1 1.8-1.8h5.5a1.7 1.7 0 0 0 1.7-1.7z" fill="#C9E3F6" stroke="#456B94" stroke-width="1.8" stroke-linejoin="round"/>
+    <path d="M8 8.5h4M8 12h3" stroke="#C3D5EC" stroke-width="1.8" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="i-image" viewBox="0 0 24 24">
+    <rect x="3" y="4" width="18" height="16" rx="2" fill="#fff" stroke="#456B94" stroke-width="1.8"/>
+    <circle cx="15.6" cy="9" r="1.8" fill="#FFC978"/>
+    <path d="M4.8 18.2 9.4 12.2l4 6z" fill="#C9E3F6" stroke="#456B94" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M12.4 18.2l3.2-3.8 3.6 3.8z" fill="#C3D5EC" stroke="#456B94" stroke-width="1.5" stroke-linejoin="round"/>
+  </symbol>
+</svg>
+
+<div class="app">
+  <!-- ═══ 左侧导航（草图绿条区域）═══ -->
+  <nav class="sidebar">
+    <div class="logo" id="logo" title="点击预览 Logo 动效状态">
+      <!-- Logo 造型里不写任何色值：每个部位只挂 class，颜色全部由 CSS 令牌 --logo-* 提供。
+           这样「换主题 = 换变量」，图形本身一份即可，无需按主题导出多套资源。 -->
+      <svg viewBox="0 0 40 40">
+        <rect class="bg" width="40" height="40" rx="13"/>
+        <g class="g-glyph">
+          <rect class="ink-f" x="8" y="9" width="13" height="13" rx="2.5"/>
+          <rect class="accent" x="19" y="18" width="13" height="13" rx="2.5"/>
+          <path class="link" d="M14.6 17.2 23.4 26" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+        </g>
+        <g class="g-scan"><rect x="10" width="20" height="2.8" rx="1.4"/></g>
+        <g class="g-up">
+          <path d="M20 30v-9.5" stroke-width="2.6" stroke-linecap="round"/>
+          <path d="M16 24l4-4 4 4" fill="none" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </svg>
+    </div>
+    <button class="nav-item active" data-view="upload"><svg class="ico"><use href="#i-upload"/></svg>上传</button>
+    <button class="nav-item" data-view="manage"><svg class="ico"><use href="#i-folder"/></svg>管理</button>
+    <button class="nav-item" data-view="settings"><svg class="ico"><use href="#i-gear"/></svg>设置</button>
+    <button class="nav-item" data-view="doc"><svg class="ico"><use href="#i-book"/></svg>规范</button>
+    <div class="spacer"></div>
+    <div class="avatar">A</div>
+  </nav>
+
+  <!-- ═══ 主区域（草图右侧大块）═══ -->
+  <main class="main">
+    <header class="topbar">
+      <h1 id="pageTitle">文件放置</h1>
+      <span class="crumb" id="pageCrumb">拖入文件即可上传</span>
+      <div class="right">
+        <div class="usage">
+          <div class="usage-bar"><span style="width:24%"></span></div>
+          <span class="hint">已用 1.2 / 5 GB</span>
+        </div>
+        <span class="hint">主题</span>
+        <button class="chip chip-btn active" data-theme-btn="">默认·晴空蓝</button>
+        <button class="chip chip-btn" data-theme-btn="klein">A 群青夕橙</button>
+        <button class="chip chip-btn" data-theme-btn="cream">B 樱粉若叶</button>
+      </div>
+    </header>
+
+    <!-- 视图一：文件放置 -->
+    <section class="content" id="view-upload">
+      <div class="dropzone" id="dropzone">
+        <div class="big-ico"><svg><use href="#i-image"/></svg></div>
+        <h2>将文件拖放到此处</h2>
+        <p>或点击选择文件上传 · 支持 JPG / PNG / GIF / WebP · 单张 ≤ 10 MB</p>
+        <div style="display:flex;gap:12px">
+          <button class="btn btn-primary">选择文件</button>
+          <button class="btn btn-ghost">粘贴剪贴板</button>
+        </div>
+        <span class="hint">上传后自动生成外链，可直接复制 Markdown / HTML / URL 格式</span>
+      </div>
+    </section>
+
+    <!-- 视图二：管理 -->
+    <section class="content" id="view-manage" style="display:none">
+      <div class="stat-row">
+        <div class="stat-card"><div class="lbl">文件总数</div><div class="num">326</div></div>
+        <div class="stat-card"><div class="lbl">本月上传</div><div class="num">48</div></div>
+        <div class="stat-card"><div class="lbl">已用流量</div><div class="num">1.2 GB</div></div>
+        <div class="stat-card"><div class="lbl">外链调用</div><div class="num">12.8k</div></div>
+      </div>
+      <div class="toolbar">
+        <input class="search" placeholder="搜索文件名…">
+        <button class="btn btn-ghost">按时间 ↓</button>
+        <button class="btn btn-primary" style="margin-left:auto">批量复制外链</button>
+      </div>
+      <div class="file-grid">
+        <div class="file-card">
+          <div class="file-thumb th1">🏞️</div>
+          <div class="file-meta">
+            <div class="name">banner-hero.png</div>
+            <div class="row"><span>248 KB</span><span class="tag">已复制</span></div>
+          </div>
+        </div>
+        <div class="file-card">
+          <div class="file-thumb th2">🌄</div>
+          <div class="file-meta">
+            <div class="name">screenshot-0925.jpg</div>
+            <div class="row"><span>1.1 MB</span><span class="tag">外链中</span></div>
+          </div>
+        </div>
+        <div class="file-card">
+          <div class="file-thumb th3">🌇</div>
+          <div class="file-meta">
+            <div class="name">avatar-round.webp</div>
+            <div class="row"><span>86 KB</span><span class="tag">外链中</span></div>
+          </div>
+        </div>
+        <div class="file-card">
+          <div class="file-thumb th4">🎆</div>
+          <div class="file-meta">
+            <div class="name">demo-loop.gif</div>
+            <div class="row"><span>3.4 MB</span><span class="tag">已复制</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 视图三：设置 -->
+    <section class="content" id="view-settings" style="display:none">
+      <div class="settings">
+        <div class="set-card">
+          <h3>图床配置</h3>
+          <div class="form-row"><label>存储桶名称</label><input type="text" value="my-image-bucket"></div>
+          <div class="form-row"><label>自定义域名</label><input type="text" value="img.example.com"></div>
+          <div class="form-row"><label>访问密钥</label><input type="text" value="••••••••••••" ></div>
+        </div>
+        <div class="set-card">
+          <h3>上传偏好</h3>
+          <div class="form-row"><label>自动压缩图片</label>
+            <label class="switch"><input type="checkbox" checked><span class="track"></span></label></div>
+          <div class="form-row"><label>上传后自动复制外链</label>
+            <label class="switch"><input type="checkbox" checked><span class="track"></span></label></div>
+          <div class="form-row"><label>重名文件自动改名</label>
+            <label class="switch"><input type="checkbox"><span class="track"></span></label></div>
+        </div>
+        <button class="btn btn-primary">保存设置</button>
+      </div>
+    </section>
+
+    <!-- 组件规范页 -->
+    <section class="content doc" id="view-doc" style="display:none">
+      <p class="hint" style="margin-bottom:16px">💡 本页底部「Logo 与状态动效」一节可实时切换左上角 Logo 的三套配色。</p>
+      <h2>🎨 主题配色（三套 · 京阿尼柔光水彩调）</h2>
+      <p class="hint" style="margin:0 0 12px">色相沿用三张参考照片，但整体按<b>京阿尼式水彩赛璐璐</b>重调：去浊提纯 → <b>降饱和提明度</b>（更柔）→ 暗部/投影改用彩度阴影 → 底色加空气感渐变与顶部柔光。详见下方「京阿尼柔光七原则」。<b>本轮唯一目标是「更柔」</b>：主色 S 普遍 −15~−20、L +5~+10，投影由死黑改彩色柔影，圆角整体 +2~4。</p>
+
+      <h3>默认 · 柔晴空蓝 × 夕照奶油（取自参考照片 · 京阿尼化）</h3>
+      <div class="token-row">
+        <div class="chip"><span class="dot" style="background:#4E93C0"></span>Primary 晴空蓝 · #4E93C0</div>
+        <div class="chip"><span class="dot" style="background:#3C7BA6"></span>Primary-Hover 深海蓝 · #3C7BA6</div>
+        <div class="chip"><span class="dot" style="background:#E8F4FB"></span>Primary-Soft 晨光蓝 · #E8F4FB</div>
+        <div class="chip"><span class="dot" style="background:#8ACFEE"></span>Primary-Vivid 晴空亮蓝 · #8ACFEE</div>
+        <div class="chip"><span class="dot" style="background:#FFC978"></span>Accent 夕照金 · #FFC978</div>
+        <div class="chip"><span class="dot" style="background:#6BD9B4"></span>Success 新绿 · #6BD9B4</div>
+        <div class="chip"><span class="dot" style="background:#FF8B96"></span>Danger 朱樱红 · #FF8B96</div>
+        <div class="chip"><span class="dot" style="background:#EDF4FA;border:1px solid #DCE9F5"></span>BG 晨光白 · #EDF4FA</div>
+        <div class="chip"><span class="dot" style="background:#FFFFFF;border:1px solid #DCE9F5"></span>Surface 纯白高光 · #FFFFFF</div>
+        <div class="chip"><span class="dot" style="background:#DCE9F5"></span>Border 青灰 · #DCE9F5</div>
+        <div class="chip"><span class="dot" style="background:#3E5670"></span>Text 深蓝影 · #3E5670</div>
+        <div class="chip"><span class="dot" style="background:#6B85A2"></span>Text-2 靛蓝灰 · #6B85A2</div>
+        <div class="chip"><span class="dot" style="background:#93B1CC"></span>Text-3 浅青灰 · #93B1CC</div>
+        <div class="chip"><span class="dot" style="background:#F3F9FD;border:1px solid #DCE9F5"></span>Mist 雾蓝（大面积底纹）· #F3F9FD</div>
+        <div class="chip"><span class="dot" style="background:#E4EEF8;border:1px solid #DCE9F5"></span>BG-2 渐变下端 · #E4EEF8</div>
+        <div class="chip"><span class="dot" style="background:#5A82AA"></span>Shadow 彩色柔影 · rgb(90,130,170)</div>
+      </div>
+      <ul class="spec-list">
+        <li><b>60-30-10 法则</b>：60% 晨光白底/Surface 白 · 30% 晴空蓝（导航选中、主按钮、Tag）· 10% 夕照金（Logo、焦点高亮、空状态插画），暖色只做点睛，不要大面积铺</li>
+        <li><b>夕照金的用法</b>：出现在「上传成功」「复制外链」等正反馈时刻，呼应照片里逆光的暖意</li>
+        <li><b>Vivid 的分工</b>：<code>--c-primary-vivid</code> 只给插画、缩略图渐变、装饰用，不做按钮底（亮蓝上白字对比度不足 3:1）</li>
+        <li>Figma 中建 7 个 Color Style：Primary / Primary-Vivid / Accent / Neutral(BG·Border·Text 三阶) / Feedback(Success·Danger)</li>
+      </ul>
+
+      <h3>变体 A · 柔群青 × 夕橙奶油（取自照片 1 · 京阿尼化）</h3>
+      <div class="token-row">
+        <div class="chip"><span class="dot" style="background:#6484CE"></span>Primary 群青 · #6484CE</div>
+        <div class="chip"><span class="dot" style="background:#4B6DBD"></span>Primary-Hover 深群青 · #4B6DBD</div>
+        <div class="chip"><span class="dot" style="background:#E9EFFB"></span>Primary-Soft 淡群青 · #E9EFFB</div>
+        <div class="chip"><span class="dot" style="background:#A4C1F4"></span>Primary-Vivid 亮群青 · #A4C1F4</div>
+        <div class="chip"><span class="dot" style="background:#FFA978"></span>Accent 夕橙 · #FFA978</div>
+        <div class="chip"><span class="dot" style="background:#6FD4AA"></span>Success 若叶 · #6FD4AA</div>
+        <div class="chip"><span class="dot" style="background:#F4836F"></span>Danger 朱橙 · #F4836F</div>
+        <div class="chip"><span class="dot" style="background:#EDF2F9;border:1px solid #DEE5F0"></span>BG 青光白 · #EDF2F9</div>
+        <div class="chip"><span class="dot" style="background:#FFFFFF;border:1px solid #DEE5F0"></span>Surface 纯白高光 · #FFFFFF</div>
+        <div class="chip"><span class="dot" style="background:#DEE5F0"></span>Border 青灰 · #DEE5F0</div>
+        <div class="chip"><span class="dot" style="background:#3E4A63"></span>Text 深蓝黑影 · #3E4A63</div>
+        <div class="chip"><span class="dot" style="background:#63718C"></span>Text-2 蓝灰 · #63718C</div>
+        <div class="chip"><span class="dot" style="background:#9FABC4"></span>Text-3 浅蓝灰 · #9FABC4</div>
+        <div class="chip"><span class="dot" style="background:#F6F9FD;border:1px solid #DEE5F0"></span>Mist 雾群青 · #F6F9FD</div>
+        <div class="chip"><span class="dot" style="background:#E5EBF4;border:1px solid #DEE5F0"></span>BG-2 渐变下端 · #E5EBF4</div>
+        <div class="chip"><span class="dot" style="background:#6C81B1"></span>Shadow 彩色柔影 · rgb(108,129,177)</div>
+      </div>
+      <ul class="spec-list">
+        <li><b>取色来源（照片 1 · 凭描述取色）</b>：群青＝雨棚蓝（紫味群青 H222）· 夕橙＝窗框橙（H27）· 青光白＝墙面明度（只借明度不借黄相）· 深蓝影＝黑裙 · 暮蓝＝砖地灰去浊 · 暮紫＝纯黑去浊</li>
+        <li><b>Logo 同步</b>：底 #6484CE、白相片、后层相片 #BFD5F7、连接线 #FFA978（群青 × 夕橙对撞是本主题灵魂）</li>
+        <li><b>文件卡缩略图四色</b>：群青 #BFD5F7→#6484CE · 夕橙 #FFD1B3→#FFA978 · 暮蓝 #D9DEEF→#8F96B4 · 暮紫 #6E6A94→#464563</li>
+        <li><b>气质</b>：通透、明快、柔和不失对比；橙色压成奶油橘只作强调，不做大面积按钮底</li>
+        <li><b>去浊改动</b>：原「砖地灰 #5C5952」「纯黑 #1C1C1C」属写实浊色／死黑，动漫化改为带蓝紫相的 <code>#63718C</code> / <code>#3E4A63</code>，暗部保留色相</li>
+        <li><b>底色策略（定稿）</b>：只取墙面明度、不取黄相，底色 <code>#EDF2F9</code>（与纯白差 12 级），让群青与夕橙在干净底上对撞</li>
+      </ul>
+
+      <h3>变体 B · 柔樱粉 × 柔若叶（取自照片 2 · 京阿尼化）</h3>
+      <div class="token-row">
+        <div class="chip"><span class="dot" style="background:#D37493"></span>Primary 玫樱红 · #D37493</div>
+        <div class="chip"><span class="dot" style="background:#BE6280"></span>Primary-Hover 深玫瑰 · #BE6280</div>
+        <div class="chip"><span class="dot" style="background:#FBEDF2"></span>Primary-Soft 樱白 · #FBEDF2</div>
+        <div class="chip"><span class="dot" style="background:#F5B3CC"></span>Primary-Vivid 樱花粉 · #F5B3CC</div>
+        <div class="chip"><span class="dot" style="background:#86D9B4"></span>Accent 若叶绿 · #86D9B4</div>
+        <div class="chip"><span class="dot" style="background:#86D9B4"></span>Success 若叶绿 · #86D9B4</div>
+        <div class="chip"><span class="dot" style="background:#F58B8E"></span>Danger 珊瑚红 · #F58B8E</div>
+        <div class="chip"><span class="dot" style="background:#FAF1F4;border:1px solid #F7E1E9"></span>BG 樱白 · #FAF1F4</div>
+        <div class="chip"><span class="dot" style="background:#FFFFFF;border:1px solid #F7E1E9"></span>Surface 纯白高光 · #FFFFFF</div>
+        <div class="chip"><span class="dot" style="background:#F7E1E9"></span>Border 樱灰粉 · #F7E1E9</div>
+        <div class="chip"><span class="dot" style="background:#63495E"></span>Text 深紫影 · #63495E</div>
+        <div class="chip"><span class="dot" style="background:#8E718A"></span>Text-2 紫灰 · #8E718A</div>
+        <div class="chip"><span class="dot" style="background:#C6AAC0"></span>Text-3 浅紫灰 · #C6AAC0</div>
+        <div class="chip"><span class="dot" style="background:#FDF7F9;border:1px solid #F7E1E9"></span>Mist 雾樱 · #FDF7F9</div>
+        <div class="chip"><span class="dot" style="background:#F6E9EF;border:1px solid #F7E1E9"></span>BG-2 渐变下端 · #F6E9EF</div>
+        <div class="chip"><span class="dot" style="background:#AF7891"></span>Shadow 彩色柔影 · rgb(175,120,145)</div>
+      </div>
+      <ul class="spec-list">
+        <li><b>取色来源</b>：樱粉＝店铺门头与绣球（提饱和）· 若叶＝花园绿植（去橄榄浊味）· 樱白＝过曝墙面与衬衫 · 深紫影＝阴影与花盆（彩度阴影）</li>
+        <li><b>Logo 同步</b>：底 #D37493、白相片、后层相片 #F8C9DC、连接线 #FFFFFF（粉底上白线即高光）</li>
+        <li><b>文件卡缩略图四色</b>：樱粉 #F8C9DC→#D37493 · 若叶 #C2EBDC→#86D9B4 · 桃 #FFE4EE→#F5B3CC · 薄荷水 #D6EEF4→#A8D4DE</li>
+        <li><b>气质</b>：校园番、甜而不腻、粉彩马卡龙（柔化后不再高饱和）；主按钮文字必须纯白</li>
+        <li><b>去浊改动</b>：原「暖褐 #4A423B」「灰褐 #8A7F74」是写实暖浊色，动漫化改为带紫相的 <code>#63495E</code> / <code>#8E718A</code>，与樱粉同族</li>
+        <li><b>底色策略（定稿 <code>#FAF1F4</code>）</b>：只取墙面明度不取黄相，留微粉相归入樱粉同族；与纯白差 11 级，靠 Border + shadow-1 补层次</li>
+      </ul>
+
+      <ul class="spec-list" style="margin-top:12px">
+        <li><b>换肤原理</b>：颜色全走 CSS 变量，<code>body[data-theme]</code> 覆盖令牌，组件结构零改动；顶栏右侧可实时切换三套</li>
+      </ul>
+
+      <h2>🎯 配色应用规则（主色 × 辅助色 × 中性色）</h2>
+      <p class="hint" style="margin:0 0 8px">原则：照片怎么用色，界面就怎么用色——大面积底色铺陈、中等块面交给主色、小面积高光只做点睛。</p>
+      <ul class="spec-list">
+        <li><b>中性色 ≈ 60%</b>（页面的骨架）：BG 铺底、Surface 承卡片、Border 做分割、Text 压文字。对应照片里的墙面与阴影，永远不抢戏</li>
+        <li><b>主色 ≈ 30%</b>（品牌的脸）：主按钮底、导航选中态、Toggle 开启、Logo 底色、进度条、Tag 文字、焦点环。对应照片里那块大面积的蓝／粉／服装色</li>
+        <li><b>辅助色 ≈ 10%</b>（情绪的焦点）：Logo 连接线、成功 Toast 图标、空状态插画焦点、图表高亮。对应照片里的橙窗框、落日暖光——<b>只点缀，绝不铺面</b></li>
+        <li><b>语义色 ≤ 5%</b>：Success / Danger 只在状态出现；用量类进度条超过 80% 自动转 Danger</li>
+      </ul>
+      <h3>🇯🇵 京阿尼柔光七原则（本次调色的依据）</h3>
+      <ul class="spec-list">
+        <li><b>① 去浊提纯</b>：拒绝灰褐、土黄、橄榄这类「写实照片的中间调」，每个色都要有明确色相。旧值 → 新值示例：<code>#64798C</code> 水泥灰 → <code>#6B85A2</code> 靛蓝灰；<code>#5C5952</code> 砖地灰 → <code>#63718C</code> 蓝灰；<code>#7FA86B</code> 橄榄绿 → <code>#86D9B4</code> 若叶绿</li>
+        <li><b>② 彩度阴影（赛璐璐核心）</b>：暗部不是灰色，而是底色的高饱和低明度版。所以 Text 不用中性灰，默认主题走深蓝影 <code>#3E5670</code>、A 走深蓝黑 <code>#3E4A63</code>、B 走深紫影 <code>#63495E</code>——阴影里能读出主题色相</li>
+        <li><b>③ 高光留白</b>：亮部保持纯白 <code>#FFFFFF</code> 不掺灰，Surface / Logo 前景 / 上传箭头一律纯白，模拟动画里的高光块</li>
+        <li><b>④ 空气透视</b>：底色高明度、低饱和、偏青，营造日本动画背景的透明空气感；本轮再叠一层 <code>--c-bg → --c-bg-2</code> 的浅渐变 + 顶部白雾柔光（逆光空气）。三套 BG 分别为 <code>#EDF4FA</code>（偏青）/ <code>#EDF2F9</code>（偏青）/ <code>#FAF1F4</code>（偏粉）</li>
+        <li><b>⑤ 亮色分离</b>：主色要守按钮白字对比度（≥3:1），想更“动漫”的亮蓝亮粉另立 <code>--c-primary-vivid</code>，只给插画/缩略图/装饰用，不铺按钮底</li>
+        <li><b>⑥ 柔化降饱和（本轮新增，京阿尼的“水彩感”来源）</b>：主色 S 压到 45~55%、L 提到 50~65%（旧值普遍 S 65~75 / L 45~55）。<b>柔 ≠ 灰</b>——降饱和的同时必须保住色相与明度，否则就退回“去浊”要消灭的水泥灰</li>
+        <li><b>⑦ 彩色柔影 + 圆润边界（本轮新增）</b>：投影弃用 <code>rgba(0,0,0,.06)</code> 的死黑，改用 <code>--c-shadow</code>（主题色的低饱和暗相）+ 大 blur（8~24px），卡片像浮在空气里；同时圆角整体 +2~4、描边再淡一档，边界不割手</li>
+      </ul>
+
+      <h3>照片用色 → 界面角色（取色映射）</h3>
+      <ul class="spec-list">
+        <li><b>默认「晴空蓝 × 夕照金」</b>：雾蓝纱帘/墙 60% → 骨架（偏青的晨光白 <code>#EDF4FA</code>）；丹宁蓝外套 28% → 主色（提纯为晴空蓝 <code>#4E93C0</code>）；落日暖光 7% → 辅助色（去土味的夕照金 <code>#FFC978</code>）；炭黑暗部 5% → 文字（彩度阴影 <code>#3E5670</code>）</li>
+        <li><b>变体 A「群青 × 夕橙」</b>：墙面明度 62% → 骨架（<b>去黄相</b>，用青光白 <code>#EDF2F9</code>）；群青雨棚 24% → 主色（提亮为群青 <code>#6484CE</code>）；橙窗框 8% → 辅助色（夕橙 <code>#FFA978</code>，只做强调线与边框）；黑裙/灰砖地 6% → 文字与中性（深蓝黑 <code>#3E4A63</code> / 蓝灰 <code>#63718C</code>）</li>
+        <li><b>变体 B「樱粉 × 若叶」</b>：暖白墙面 65% → 骨架（<b>去黄相</b>，转樱白 <code>#FAF1F4</code>）；粉色门头与绣球 22% → 主色（提饱和为玫樱 <code>#D37493</code>）；花园绿植 10% → 辅助色兼 Success（若叶 <code>#86D9B4</code>）；暖褐阴影 3% → 文字（深紫影 <code>#63495E</code>）</li>
+      </ul>
+      <h3>中性底色的降脏三原则</h3>
+      <ul class="spec-list">
+        <li><b>只借明度，不借色相</b>：照片墙色带黄相，直接铺大面积必脏；取它的明度（约 95% 亮度），色相改用主色的同族浅色或纯中性灰</li>
+        <li><b>通道差按色相分档</b>：暖相（R&gt;B，易发黄发灰）必须 ≤ 6；冷相（B&gt;R，如青光白、晨光白）可放宽到 12，读起来仍是干净的白而非脏灰。当前三套底色：<code>#EDF4FA</code>（差 12，冷）/ <code>#EDF2F9</code>（差 12，冷）/ <code>#FAF1F4</code>（差 11，粉相）</li>
+        <li><b>与白卡保持 10+ 亮度差</b>：底色与 Surface 纯白至少差 10 个亮度级，否则卡片浮不起来、界面糊成一片；靠描边 + shadow-1 再补一层。反例：<code>#F8F6F5</code> 与白只差 7，整屏发糊；本轮动漫化一度想用更亮的 <code>#F5FAFF</code>（只差 5），已按此条驳回并压到 <code>#EDF4FA</code>（差 10）</li>
+      </ul>
+      <h3>组件级分工（不许串岗）</h3>
+      <ul class="spec-list">
+        <li><b>必须主色</b>：主按钮底、导航选中、Toggle on、Logo 底、Tag、进度条、Focus 环</li>
+        <li><b>可以辅助色</b>：Logo 折角/连接线、Toast 图标、空状态插画焦点、图表高亮、hover 微强调</li>
+        <li><b>禁止辅助色</b>：正文文字、可点击文字（会与主色语义混淆）、大面积按钮底、卡片底色</li>
+        <li><b>每屏上限</b>：辅助色在同屏出现不超过 3 处，主色不超过 5 个主要块面</li>
+      </ul>
+      <p class="hint" style="margin:8px 0 0">已落地示例：顶栏容量进度条（主色填充，超 80% 转 Danger）、上传成功 Toast（夕照金图标点睛）——拖个文件到放置区即可看到。</p>
+
+      <h2>🔤 文字样式</h2>
+      <ul class="spec-list">
+        <li>页面标题 H1：16px / 600 / Text</li>
+        <li>区块标题 H2：18px / 700 / Text</li>
+        <li>正文 Body：14px / 400 / Text</li>
+        <li>辅助说明 Caption：12px / 400 / Text-3</li>
+      </ul>
+      <h2>📐 间距与圆角</h2>
+      <ul class="spec-list">
+        <li>间距体系：4 的倍数 —— <code>4 / 8 / 12 / 16 / 24 / 32</code>px</li>
+        <li>圆角：小元素 6px · 卡片/按钮 10px · 大区块 16px · 胶囊 999px</li>
+        <li>阴影：卡片一层 <code>0 1px 3px 6%</code> · 悬浮两层 <code>0 4px 12px 8%</code></li>
+      </ul>
+      <h2>🖼 图标规范（参考 iconfont 插画方案 · 风格自绘）</h2>
+      <div class="token-row">
+        <div class="chip"><svg class="ico" style="width:30px;height:30px"><use href="#i-upload"/></svg>i-upload</div>
+        <div class="chip"><svg class="ico" style="width:30px;height:30px"><use href="#i-folder"/></svg>i-folder</div>
+        <div class="chip"><svg class="ico" style="width:30px;height:30px"><use href="#i-gear"/></svg>i-gear</div>
+        <div class="chip"><svg class="ico" style="width:30px;height:30px"><use href="#i-search"/></svg>i-search</div>
+        <div class="chip"><svg class="ico" style="width:30px;height:30px"><use href="#i-image"/></svg>i-image</div>
+      </div>
+      <ul class="spec-list">
+        <li><b>风格</b>：粗描边双色（参考方案特征）—— 描边藏青 <code>#456B94</code>、线宽 2/24（≈8%）、转折处小圆角、笔画硬朗</li>
+        <li><b>配色</b>：主体留白 + 浅天蓝 <code>#C9E3F6</code> 点缀；次级细节雾灰 <code>#C3D5EC</code>（动漫化：由中性灰 <code>#C9CDD4</code> 改为带蓝相，避免浊）；暖色仅做点睛（夕照金 <code>#FFC978</code>，如太阳）</li>
+        <li><b>网格</b>：24×24 出图；导航 22px、行内 16px、空状态主视觉 52px；Figma 中做成 Icon 组件 + 尺寸 Variant</li>
+        <li><b>插画感</b>：空状态/引导位可给图标垫浅灰蓝圆底 <code>#E8EEF3</code>，复刻参考方案的背景云</li>
+        <li><b>⚠️ 版权</b>：原方案为 iconfont 付费插画（整套 ¥49/商用），此处仅借鉴风格语言自绘，请勿直接使用原图商用</li>
+      </ul>
+      <h2>✨ Logo 与状态动效（Discord 式）</h2>
+      <ul class="spec-list">
+        <li><b>造型</b>：44×44 squircle（圆角 ≈30%，Discord 同款比例）；「层叠图片 + 外链」——前白后蓝两张相片错位层叠，一道琥珀斜线贯穿相连，正好是图床的核心流程：上传图片 → 拿到外链</li>
+        <li><b>配色与主题绑定（关键约束）</b>：Logo 底色<b>只能从当前主题的色系里取</b>，禁止跨主题混用（B 主题下不能用晴空蓝）。每套主题固定给三个候选位：<b>① 主色同族</b>（最稳，与界面一体）· <b>② 彩度阴影色</b>（最克制，＝该主题暗部的紫/蓝紫，非中性灰）· <b>③ 辅助色点睛</b>（辨识度最高，但底面积小，不违反辅助色不铺面的法则）</li>
+        <li><b>连接线取辅助色</b>：且必须在该底色上可见——深底用夕照金/夕橙，粉底或暖底改用纯白高光，金底反过来用深棕 <code>#8A6A3A</code></li>
+        <li><b>已弃用</b>：深夜蓝 / 墨蓝等深色底——用户反馈偏沉闷；Logo 底色走中明度（L≈45–60）</li>
+        <li><b>实现方式</b>：底版/前景/后层/连接线/扫描线/光环/投影全部消费 CSS 令牌 <code>--logo-*</code>，SVG 内不写色值；JS 只写 <code>data-theme</code> / <code>data-logo</code> 状态属性。完整令牌表、命名规则、回退机制与扩展方式见下方 <b>「🎯 Logo 主题化配色」</b></li>
+        <li style="list-style:none;margin-left:-20px">
+          <div class="token-row" id="logoVarRow" style="margin-top:8px"></div>
+          <span class="hint" id="logoVarHint">↑ 候选随当前主题联动，点选即时切换左上角 Logo</span>
+        </li>
+        <li><b>状态 1 · 扫描文件</b>（dragover 触发）：白色扫描线在相框内上下扫动（1.2s 循环）+ 外圈蓝色呼吸光环扩散</li>
+        <li><b>状态 2 · 上传图片</b>（drop 触发，约 2.2s）：白色箭头持续升腾渐隐 + 相框内山形微沉，传达「图片被收进来」</li>
+        <li><b>静止态</b>：无动效；hover 轻微放大 1.06</li>
+        <li><b>预览</b>：直接点击左侧 Logo 可依次体验 扫描 → 上传 → 静止</li>
+        <li>Figma 落地：三个状态各一 Frame，Smart Animate 连线；给开发可用 Lottie 导出</li>
+      </ul>
+      <h2>🎯 Logo 主题化配色（令牌驱动 · 交付实现要求）</h2>
+      <p class="hint" style="margin:0 0 8px">目标：默认主题 Logo 底版 <code>#4E93C0</code>、A 主题 <code>#6484CE</code>、B 主题 <code>#D37493</code>。三个色值全部抽成 CSS 变量，切主题时靠变量覆盖自动生效，组件内<b>零硬编码</b>。顶栏切换主题即可看到左上角 Logo 自动换色。</p>
+
+      <h3>1. 令牌表（Logo 专属 · 组件级）</h3>
+      <table>
+        <tr><th>令牌</th><th>默认·晴空蓝</th><th>A·群青×夕橙</th><th>B·樱粉×若叶</th><th>作用部位</th></tr>
+        <tr><td><code>--logo-bg</code></td><td><b>#4E93C0</b></td><td><b>#6484CE</b></td><td><b>#D37493</b></td><td>底版（squircle 方块）</td></tr>
+        <tr><td><code>--logo-ink</code></td><td>#FFFFFF</td><td>#FFFFFF</td><td>#FFFFFF</td><td>前层相片、上传箭头</td></tr>
+        <tr><td><code>--logo-accent</code></td><td>#A9DDF3</td><td>#BFD5F7</td><td>#F8C9DC</td><td>后层相片</td></tr>
+        <tr><td><code>--logo-line</code></td><td>#FFC978</td><td>#FFA978</td><td>#FFFFFF</td><td>连接线 + 扫描线</td></tr>
+        <tr><td><code>--logo-ring</code></td><td>78,147,192</td><td>100,132,206</td><td>211,116,147</td><td>呼吸光环 / 投影（RGB 三元组，配 rgba 用）</td></tr>
+        <tr><td><code>--logo-bg-v2/-v3</code></td><td>#8A7EB4 / #FFC978</td><td>#7975AA / #FFA978</td><td>#6E5468 / #86D9B4</td><td>主题内候选位 ②③（由 data-logo 提升为生效值）</td></tr>
+      </table>
+      <ul class="spec-list">
+        <li>底色即各主题主色（晴空蓝 / 群青 / 玫樱），与界面主色同源，保证「Logo 与界面是一套色」；动漫化后饱和度提高，小尺寸更抓眼</li>
+        <li><b>--logo-ink 三套统一纯白</b>：前景图形在所有底色上都保持最大对比，且符合赛璐璐的「高光留白」——不做逐主题调色，避免某主题下前景发灰</li>
+        <li><b>--logo-line 必须跟着底版走</b>：粉底上暖色线会糊，故 B 转纯白高光；A 用夕橙做蓝橙对撞；金底（D3）反过来用深棕 <code>#8A6A3A</code> 才看得见</li>
+      </ul>
+
+      <h3>2. 变量命名规则</h3>
+      <ul class="spec-list">
+        <li><b>全局调色板</b>：<code>--c-{角色}</code> —— 如 <code>--c-primary</code> / <code>--c-accent</code> / <code>--c-bg</code>，跨组件通用</li>
+        <li><b>组件级令牌</b>：<code>--{组件}-{部位}</code> —— 如 <code>--logo-bg</code> / <code>--logo-line</code>，只在本组件内消费</li>
+        <li><b>组件内候选位</b>：<code>--{组件}-{部位}-v{n}</code> —— 如 <code>--logo-bg-v2</code>，n 从 2 起（1 即生效值本身，不另设）</li>
+        <li><b>选择器分层</b>：<code>:root</code> 声明默认 → <code>body[data-theme="xxx"]</code> 覆盖主题 → <code>body[data-theme][data-logo="v2"]</code> 覆盖候选位（特异性 0,2,1 &gt; 0,1,1，保证候选位能盖过主题）</li>
+        <li><b>主题名用小写单词</b>：<code>klein</code> / <code>cream</code>，与 <code>data-theme</code> 属性值一一对应，禁止用中文或驼峰</li>
+      </ul>
+
+      <h3>3. 回退机制（三道防线，主题未匹配 / 加载失败也不会崩）</h3>
+      <ul class="spec-list">
+        <li><b>① :root 兜底</b>：<code>--logo-bg:#4E93C0</code> 写在 <code>:root</code>，任何主题都继承得到，主题块缺失时自动用默认值</li>
+        <li><b>② 消费处双保险</b>：组件里统一写 <code>var(--logo-bg, #4E93C0)</code>，即使变量被意外清空也回退到默认色，不会变黑或透明</li>
+        <li><b>③ JS 白名单校验</b>：<code>THEME_WHITELIST=["", "klein", "cream"]</code>，传入未登记的主题名（拼写错误 / 配置加载失败 / 异步未就绪）一律回退默认主题；候选位下标越界同样回退到 ①</li>
+        <li><b>④ 宿主不在 body 上</b>：若主题挂在 <code>&lt;html&gt;</code> 或某个容器上，把 <code>body[data-theme]</code> 换成对应宿主即可，令牌与消费处无需改动</li>
+      </ul>
+
+      <h3>4. 若 Logo 以图片资源引入，如何按主题切换</h3>
+      <table>
+        <tr><th>方案</th><th>做法</th><th>适用</th></tr>
+        <tr><td>A 内联 SVG + 变量（推荐）</td><td>图形不写色值，全部 <code>fill:var(--logo-*)</code></td><td>首选，一份资源自适应所有主题</td></tr>
+        <tr><td>B 单色图标 + mask</td><td><code>mask-image</code> 裁形 + <code>background-color:var(--logo-bg)</code></td><td>已有单色 PNG/SVG，想任意换色</td></tr>
+        <tr><td>C 多版本位图</td><td><code>--logo-img</code> 存 URL，主题块覆盖</td><td>必须是彩色位图、各主题造型不同</td></tr>
+        <tr><td>D SVG symbol + currentColor</td><td>SVG 内写 <code>fill="currentColor"</code>，父级设 <code>color:var(--logo-bg)</code></td><td>图标库统一管理</td></tr>
+      </table>
+<pre>/* 方案 B：一份单色资源，主题化换色（推荐给位图） */
+.logo-mask{
+  width:44px; height:44px;
+  background-color:var(--logo-bg, #4E93C0);
+  -webkit-mask:url("logo-shape.svg") center / contain no-repeat;
+          mask:url("logo-shape.svg") center / contain no-repeat;
+}
+
+/* 方案 C：彩色多版本，按主题换 URL（末位为回退资源） */
+:root{ --logo-img:url("/assets/logo-default.png") }
+body[data-theme="klein"]{ --logo-img:url("/assets/logo-klein.png") }
+body[data-theme="cream"]{ --logo-img:url("/assets/logo-cream.png") }
+.logo-img{
+  width:44px; height:44px;
+  background-image:var(--logo-img, url("/assets/logo-default.png"));
+  background-size:contain; background-repeat:no-repeat;
+}
+
+/* 方案 D：SVG symbol + currentColor */
+.logo-sprite{ color:var(--logo-bg, #4E93C0) }   /* SVG 内部 fill="currentColor" */</pre>
+      <ul class="spec-list">
+        <li><b>注意</b>：<code>&lt;picture&gt;</code> / <code>srcset</code> 只能响应媒体查询（如 <code>prefers-color-scheme</code>），<b>无法响应 data-theme</b>。若必须用 <code>&lt;img&gt;</code> 标签，改用 JS 按主题赋值并保留回退：</li>
+      </ul>
+<pre>const LOGO_SRC = { "":"/assets/logo-default.svg",
+                   klein:"/assets/logo-klein.svg",
+                   cream:"/assets/logo-cream.svg" };
+function applyLogoImg(theme){
+  // 未匹配的主题（含 undefined / 拼写错误）→ 回退默认版本
+  img.src = LOGO_SRC[theme] || LOGO_SRC[""];
+  img.alt = "图床工具 Logo";
+}</pre>
+
+      <h3>5. 新增主题时的扩展方式</h3>
+      <ul class="spec-list">
+        <li><b>Step 1</b>　在 <code>:root</code> 同级的主题区新增一段 <code>body[data-theme="{新主题名}"]</code>，覆盖 <code>--c-*</code>（界面）与 <code>--logo-*</code>（Logo）两组令牌</li>
+        <li><b>Step 2</b>　至少提供 <code>--logo-bg</code> / <code>--logo-accent</code> / <code>--logo-line</code> / <code>--logo-ring</code> 四个生效值；<code>--logo-ink</code> 沿用纯白，除非底版过浅需要转深色</li>
+        <li><b>Step 3</b>　如需主题内候选位，追加 <code>--logo-bg-v2/-v3</code>（及其 accent / line / ring），<code>body[data-logo="v2"]</code> 的提升规则<b>无需改动</b></li>
+        <li><b>Step 4</b>　把新主题名加入 JS 的 <code>THEME_WHITELIST</code> 与 <code>LOGO_VARIANTS</code>（只填 label / note 文案，不填色值）</li>
+        <li><b>Step 5</b>　组件、SVG 造型、动效代码<b>一律不改</b>——这是令牌化的验收标准：新增主题的行数应 ≈ 15 行 CSS + 3 行 JS</li>
+      </ul>
+<pre>/* Step 1–3 模板：复制后改色值即可 */
+body[data-theme="forest"]{              /* ← 新主题名，小写单词 */
+  --c-primary:#2F6B4F; --c-accent:#C9A227; /* 界面令牌 */
+  --logo-bg:#2F6B4F; --logo-accent:#A8CBB4; --logo-line:#C9A227; --logo-ring:47,107,79;
+  --logo-bg-v2:#4A423B; --logo-accent-v2:#B8AEA3; --logo-line-v2:#C9A227; --logo-ring-v2:74,66,59;
+}                                        /* v3 可选，不给即无候选位③ */
+/* Step 4：THEME_WHITELIST.push("forest"); LOGO_VARIANTS.forest={...}; */</pre>
+      <ul class="spec-list">
+        <li><b>验收</b>：切到新主题后 Logo 底版 = 新 <code>--logo-bg</code>，且扫描线、光环、投影、上传箭头全部同步换色（本页点 Logo 可预览动效）</li>
+      </ul>
+
+      <h2>🧩 Figma 组件拆分建议</h2>
+      <ul class="spec-list">
+        <li><b>NavItem</b>（icon+label，Variant: default / hover / active）</li>
+        <li><b>DropZone</b>（Variant: idle / hover / dragging / error）</li>
+        <li><b>FileCard</b>（缩略图 + 文件名 + 大小 + 状态 Tag，可做 Auto Layout 网格）</li>
+        <li><b>StatCard</b>（标签 + 数值）、<b>Toggle</b>、<b>SearchInput</b>、<b>Button</b>(primary/ghost)</li>
+        <li>全部套用 Color / Text / Effect 样式，不出现硬编码色值</li>
+      </ul>
+      <h2>🔗 原型连线（Prototype）</h2>
+      <ul class="spec-list">
+        <li>NavItem.onTap → 切换对应 Frame（Smart Animate · 200ms · Ease-out）</li>
+        <li>DropZone.onDragOver → 切到 dragging Variant；onDrop → 弹出「上传成功」Toast</li>
+        <li>FileCard.onClick → 打开详情浮层（复制外链 / 删除）</li>
+        <li>设置页「保存」→ Toast「已保存」</li>
+      </ul>
+    </section>
+  </main>
+</div>
+
+<script>
+// ═══ 原型交互：侧边导航切换视图 ═══
+const titles={
+  upload:["文件放置","拖入文件即可上传"],
+  manage:["文件管理","共 326 个文件"],
+  settings:["设置","图床配置与上传偏好"],
+  doc:["设计规范","令牌 · 组件 · 原型连线"]
+};
+document.querySelectorAll(".nav-item").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    document.querySelectorAll(".nav-item").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    const v=btn.dataset.view;
+    ["upload","manage","settings","doc"].forEach(k=>{
+      document.getElementById("view-"+k).style.display=k===v?"":"none";
+    });
+    document.getElementById("pageTitle").textContent=titles[v][0];
+    document.getElementById("pageCrumb").textContent=titles[v][1];
+  });
+});
+let toastTimer=null;
+function showToast(text){
+  const t=document.getElementById("toast");
+  document.getElementById("toastText").textContent=text;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove("show"),2000);
+}
+// 设置页保存 → Toast（辅助色正反馈）
+document.querySelectorAll(".btn-primary").forEach(b=>{
+  if(b.textContent.trim()==="保存设置")
+    b.addEventListener("click",()=>showToast("设置已保存"));
+});
+// 拖放反馈 + Logo 状态动效联动
+const dz=document.getElementById("dropzone");
+const logo=document.getElementById("logo");
+let upTimer=null;
+function logoState(s){
+  logo.classList.remove("scanning","uploading");
+  if(s) logo.classList.add(s);
+}
+dz.addEventListener("dragover",e=>{e.preventDefault();dz.classList.add("drag");logoState("scanning");
+  dz.querySelector("h2").textContent="🔎 正在扫描文件…";});
+dz.addEventListener("dragleave",()=>{dz.classList.remove("drag");
+  if(!upTimer){logoState(null);dz.querySelector("h2").textContent="将文件拖放到此处";}});
+dz.addEventListener("drop",e=>{e.preventDefault();dz.classList.remove("drag");
+  logoState("uploading");
+  dz.querySelector("h2").textContent="⬆ 正在上传图片…";
+  clearTimeout(upTimer);
+  upTimer=setTimeout(()=>{logoState(null);upTimer=null;
+    dz.querySelector("h2").textContent="✅ 上传完成（原型演示）";
+    showToast("上传完成，外链已复制");
+    setTimeout(()=>dz.querySelector("h2").textContent="将文件拖放到此处",1800);
+  },2200);});
+// ═══ Logo 配色：主题化令牌驱动 ═══
+// 关键设计：JS **不再注入任何色值**，只负责在 <body> 上写两个状态属性：
+//   data-theme = "" | "klein" | "cream"   → 决定走哪一套 --logo-* 变量
+//   data-logo  = 缺省 | "v2" | "v3"       → 决定主题内第几个候选位
+// 色值 100% 由 CSS 变量提供（见样式表「Logo 主题化配色令牌」），
+// 因此「换主题」= 「换变量」，无需重绘、无需多套资源、也不会出现 JS 与 CSS 抢优先级的问题。
+const LOGO_VARIANTS={
+  "":{hint:"默认·晴空蓝：候选 D1–D3（底版 #4E93C0）", list:[
+    {key:"",   label:"D1 晴空蓝", note:"主色同族，最稳"},
+    {key:"v2", label:"D2 暮紫",   note:"彩度阴影紫（照片暗部去浊）"},
+    {key:"v3", label:"D3 夕照金", note:"辅助色点睛"}
+  ]},
+  "klein":{hint:"A·群青×夕橙：候选 A1–A3（底版 #6484CE）", list:[
+    {key:"",   label:"A1 群青",   note:"主色同族 + 夕橙对撞"},
+    {key:"v2", label:"A2 暮紫", note:"彩度阴影紫（暗部去浊）"},
+    {key:"v3", label:"A3 夕橙",   note:"辅助色点睛"}
+  ]},
+  "cream":{hint:"B·樱粉×若叶：候选 B1–B3（底版 #D37493）", list:[
+    {key:"",   label:"B1 玫樱", note:"主色同族 + 白高光线"},
+    {key:"v2", label:"B2 深紫影", note:"彩度阴影（暖褐去浊）"},
+    {key:"v3", label:"B3 若叶",  note:"辅助色点睛"}
+  ]}
+};
+/* 主题白名单：未登记的主题名视为「加载失败 / 未匹配」，一律回退默认（#4E93C0） */
+const THEME_WHITELIST=["", "klein", "cream"];
+let curTheme="", curLogo=0;
+const logoVarRow=document.getElementById("logoVarRow");
+const logoVarHint=document.getElementById("logoVarHint");
+function applyLogo(){
+  const list=(LOGO_VARIANTS[curTheme]||LOGO_VARIANTS[""]).list;
+  const v=(list[curLogo]||list[0]).key;      // 越界同样回退到第一候选（① 主色同族）
+  if(v) document.body.dataset.logo=v; else delete document.body.dataset.logo;
+}
+function renderLogoVars(){
+  const cfg=LOGO_VARIANTS[curTheme]||LOGO_VARIANTS[""];
+  logoVarHint.textContent="↑ "+cfg.hint+" —— 当前："+cfg.list[curLogo].note;
+  logoVarRow.innerHTML=cfg.list.map((v,i)=>
+    '<button class="chip logo-var'+(i===curLogo?" active":"")+'" data-logo-idx="'+i+'">'+v.label+"</button>"
+  ).join("");
+  logoVarRow.querySelectorAll("[data-logo-idx]").forEach(b=>{
+    b.addEventListener("click",()=>{
+      curLogo=+b.dataset.logoIdx; renderLogoVars(); applyLogo();
+    });
+  });
+}
+
+// ═══ 主题切换：默认晨雾蓝 / A 橙窗蓝调 / B 奶油花园 ═══
+const themeBtns=document.querySelectorAll("[data-theme-btn]");
+function setTheme(t){
+  /* 回退策略：主题不在白名单（拼写错误、配置文件加载失败、异步主题未就绪）→ 用默认主题，
+     此时 --logo-* 取 :root 的 #4E93C0，Logo 不会变黑或透明 */
+  curTheme = THEME_WHITELIST.indexOf(t)>-1 ? t : "";
+  curLogo = 0;   // 换主题后候选位回到 ①，避免跨主题串色
+  if(curTheme) document.body.dataset.theme=curTheme; else delete document.body.dataset.theme;
+  themeBtns.forEach(b=>b.classList.toggle("active", b.dataset.themeBtn===curTheme));
+  renderLogoVars(); applyLogo();
+}
+themeBtns.forEach(btn=>{
+  btn.addEventListener("click",()=>setTheme(btn.dataset.themeBtn));
+});
+setTheme(""); // 初始化：默认主题 + D1（#4E93C0）
+// 点击 Logo 依次预览：扫描 → 上传 → 回到静止
+logo.addEventListener("click",()=>{
+  if(logo.classList.contains("scanning")){logoState("uploading");
+    setTimeout(()=>logoState(null),2200);}
+  else logoState("scanning");
+});
+</script>
+<!-- 上传 / 保存成功提示（辅助色的落地场景） -->
+<div class="toast" id="toast">
+  <span class="mark">✓</span><span id="toastText">上传完成，外链已复制</span>
+</div>
+</body>
+</html>

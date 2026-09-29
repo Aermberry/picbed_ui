@@ -1,0 +1,22 @@
+# 统一行尾：仓库内以 LF 存储，检出时按平台转换（Windows 自动转 CRLF）
+* text=auto
+
+# 文本类显式声明，避免被误判为二进制
+*.html text
+*.css  text
+*.js   text
+*.json text
+*.md   text
+*.yml  text
+*.yaml text
+
+# 二进制类不做任何转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.svg text
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
