@@ -152,16 +152,19 @@ body{
   display:flex; height:100vh; min-width:860px;
 }
 
-/* ========== 左侧导航（对应草图绿线分隔的竖条） ========== */
+/* ========== 左侧导航（对应草图绿线分隔的竖条） ==========
+   宽度收窄到 56px（原 72px）：图区多出 16px，导航入口一个不少。
+   文字标签改为悬停滑出的浮层提示（.nav-tip），不占用常驻宽度——
+   省下横向空间的同时没有牺牲任何功能可达性。 */
 .sidebar{
-  width:72px; background:var(--c-surface);
+  width:56px; background:var(--c-surface);
   border-right:1px solid var(--c-border);
   display:flex; flex-direction:column; align-items:center;
-  padding:var(--sp-5) 0; gap:var(--sp-2);
+  padding:var(--sp-4) 0; gap:var(--sp-1);
 }
 .logo{
   width:44px;height:44px;border-radius:14px; /* Discord 式 squircle 比例 */
-  margin-bottom:var(--sp-6); position:relative; overflow:hidden;
+  margin-bottom:var(--sp-5); position:relative; overflow:hidden;
   cursor:pointer; flex-shrink:0; transition:transform .15s, box-shadow .2s;
   /* 投影同样主题化：rgba(var(--logo-ring), .28)，底版换色投影随之换色 */
   box-shadow:0 2px 6px rgba(var(--logo-ring,78,147,192),.28);
@@ -210,21 +213,46 @@ body{
   0%,100%{transform:translateY(0)}
   45%{transform:translateY(1.5px)}
 }
+/* —— 导航项：56px 窄栏内为纯图标，文字标签走浮层提示 —— */
 .nav-item{
-  width:56px; padding:var(--sp-2) 0;
-  display:flex; flex-direction:column; align-items:center; gap:4px;
+  position:relative; width:44px; height:40px;
+  display:flex; align-items:center; justify-content:center;
   border-radius:var(--r-md); cursor:pointer;
   color:var(--c-text-2); font-size:12px;
   transition:all .18s ease-out; border:none; background:none;
 }
 .nav-item .ico{width:22px;height:22px;display:block}
 .nav-item:hover{background:var(--c-primary-soft); color:var(--c-primary)}
-.nav-item.active{background:var(--c-primary-soft); color:var(--c-primary); font-weight:600}
-.sidebar .spacer{flex:1}
+.nav-item.active{background:var(--c-primary-soft); color:var(--c-primary)}
+.nav-item.active::before{
+  content:""; position:absolute; left:-9px; top:50%; transform:translateY(-50%);
+  width:3px; height:18px; border-radius:var(--r-full); background:var(--c-primary);
+}
+/* 浮层提示：默认不可见并左移 4px，悬停/聚焦时滑入并淡出。
+   z-index 抬高到侧栏之上，避免被主区域盖住。 */
+.nav-tip{
+  position:absolute; left:calc(100% + 10px); top:50%;
+  transform:translateY(-50%) translateX(-4px);
+  background:var(--c-text); color:#fff;
+  font-size:12px; line-height:1; white-space:nowrap;
+  padding:6px 10px; border-radius:var(--r-sm);
+  box-shadow:var(--shadow-1); pointer-events:none;
+  opacity:0; transition:opacity .16s ease-out, transform .16s ease-out;
+  z-index:20;
+}
+.nav-tip::before{
+  content:""; position:absolute; right:100%; top:50%;
+  transform:translateY(-50%) translateX(1px);
+  border:5px solid transparent; border-right-color:var(--c-text);
+}
+.nav-item:hover .nav-tip,.nav-item:focus-visible .nav-tip{
+  opacity:1; transform:translateY(-50%) translateX(0);
+}
+/* 侧栏底部头像与 Logo 同窄：44px 栏宽下用 34px 圆 */
 .avatar{
-  width:36px;height:36px;border-radius:var(--r-full);
+  width:34px;height:34px;border-radius:var(--r-full);
   background:var(--c-primary-soft);color:var(--c-primary);
-  display:flex;align-items:center;justify-content:center;font-weight:600;
+  display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;
 }
 
 /* ========== 主区域 ========== */
@@ -266,6 +294,138 @@ body{
 .btn-ghost{background:none; color:var(--c-text-2); border:1px solid var(--c-border)}
 .btn-ghost:hover{color:var(--c-primary); border-color:var(--c-primary)}
 .hint{font-size:12px; color:var(--c-text-3)}
+
+/* ========== 按钮尺寸变体 ==========
+   .btn-sm 供工具栏使用：比主按钮矮一档（32 vs 38），避免工具条压过页面主 CTA 的视觉权重 */
+.btn-sm{padding:6px 16px; font-size:13px; border-radius:var(--r-sm)}
+
+/* 识别结果栏（工具栏宿主 · 不参与滚动） ==========
+   注意：HTML 上保留了 .content 类以复用基础排版，但它带来的 flex:1 / overflow:auto
+   会把这个条状栏撑成大块、并引入多余滚动。故在此显式复位这三条属性 ——
+   顺序上本规则晚于 .content，同优先级下后者胜出。 */
+.preview-bar{
+  display:flex; align-items:center; gap:var(--sp-3);
+  flex:0 0 auto;                     /* 复位 .content 的 flex:1 —— 它只该按内容高度占位 */
+  overflow:visible;                  /* 复位 .content 的 overflow:auto —— 它不该自己滚动 */
+  padding:var(--sp-3) var(--sp-6);
+  background:var(--c-surface); border-bottom:1px solid var(--c-border);
+  position:relative; z-index:2;
+  box-shadow:0 1px 0 rgba(var(--c-shadow,90,130,170),.04); /* 极淡分隔影，滚动时图从下方穿过 */
+  transition:opacity .22s ease-out;                       /* 让位淡出用，见 .pb-dim */
+}
+.pb-label{font-size:15px; font-weight:600}
+.pb-label b{color:var(--c-primary)}
+.pb-sub{font-size:12px; color:var(--c-text-3)}
+.pb-actions{margin-left:auto; display:flex; align-items:center; gap:var(--sp-2)}
+
+/* —— 让位三态（由 JS 切换 .pb-dim）——
+   ① 聚焦态：完全不透明，正常操作
+   ② 让位态 .pb-dim：淡到 38% 并不吃鼠标事件，图区可穿透点击
+   ③ 不透明度不做 0：保留一点点存在感，用户知道"它还在，鼠标过去就回来"，
+      直接消失会让人以为工具栏丢了。 */
+/* 让位态由 JS 切换 .pb-dim（样式见上，transition 与主声明块合并） */
+.preview-bar.pb-dim{opacity:.38; pointer-events:none}
+/* 进度条：上传中显示，给批量操作一个"确实在跑"的视觉回应 */
+.pb-progress{
+  flex:1; max-width:220px; height:4px; margin-left:var(--sp-4);
+  border-radius:var(--r-full); background:var(--c-primary-soft); overflow:hidden;
+  display:none;
+}
+.pb-progress.on{display:block}
+.pb-progress span{
+  display:block; height:100%; width:0;
+  border-radius:var(--r-full); background:var(--c-primary);
+  transition:width .2s linear;
+}
+
+/* ========== 图区滚动容器（全应用唯一滚动层） ==========
+   min-height:0 是关键：flex 子项默认 min-height:auto，不加它容器会被内容撑破、滚不起来。
+   顶部/底部各留一段渐隐遮罩，图片滚到边缘时柔和消失，而不是被硬边切断。 */
+.grid-wrap{
+  flex:1; min-height:0; overflow-y:auto; overflow-x:hidden;
+  padding:var(--sp-4) var(--sp-6) var(--sp-8);
+  scrollbar-gutter:stable;                 /* 滚动条出现与否都不改变列宽，避免翻页式抖动 */
+  -webkit-mask-image:linear-gradient(180deg,
+    transparent 0, #000 14px, #000 calc(100% - 20px), transparent 100%);
+          mask-image:linear-gradient(180deg,
+    transparent 0, #000 14px, #000 calc(100% - 20px), transparent 100%);
+}
+/* 每列必须加 min-width:0：grid 子项默认 min-width:auto，长文件名（如那串 md5）会把列撑爆 */
+.preview-grid{
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(168px,1fr));
+  gap:var(--sp-4); align-items:start;
+}
+.preview-grid > *{min-width:0}
+
+/* —— 图片卡片：遮罩层方案 ——
+   不用 <img>，改为每张一个 .ph 占位块（双色斜向渐变 = 当前主题的插画色板）。
+   原因：按主题切换时占位色要跟着变，而真实图片是位图、无法响应 data-theme；
+   交付时把 .ph 换回 <img> 即可，卡片骨架与外层布局完全不用动。
+
+   配色约定：占位色**不写在行内 style**，而是给每张卡一个 .t1–.t4 色板类。
+   行内 --tone 会脱离 body[data-theme] 的覆盖链，导致切主题时占位色不变；
+   改为类名后，主题块只需覆盖 .t1–.t4 的渐变即可，与 .th1–.th4 同一套色板。 */
+.pv-card{
+  position:relative; margin:0; cursor:pointer;
+  border-radius:var(--r-md); overflow:hidden;
+  background:var(--c-surface); border:1px solid transparent;
+  box-shadow:var(--shadow-1); padding:0;
+  transition:box-shadow .18s ease-out, transform .18s ease-out, border-color .18s ease-out;
+  outline:none;
+}
+.pv-card:hover{box-shadow:var(--shadow-2); transform:translateY(-2px)}
+.pv-card:focus-visible{border-color:var(--c-primary); box-shadow:0 0 0 3px var(--c-primary-soft)}
+.pv-card .ph{
+  /* 比例走行内 --ar（每张图真实宽高比，属内容而非主题，故保留行内）；
+     深浅双色走 .t1–.t4 类，随主题切换 */
+  aspect-ratio:var(--ar,1); position:relative;
+  background:linear-gradient(135deg,#B4E4F7,#4E93C0);
+  display:flex; align-items:center; justify-content:center;
+}
+.pv-card.t1 .ph{background:linear-gradient(135deg,#B4E4F7,#4E93C0)}
+.pv-card.t2 .ph{background:linear-gradient(135deg,#B0EBD6,#6BD9B4)}
+.pv-card.t3 .ph{background:linear-gradient(135deg,#FFE3B8,#FFC978)}
+.pv-card.t4 .ph{background:linear-gradient(135deg,#FFC0C7,#FF8B96)}
+body[data-theme="klein"] .pv-card.t1 .ph{background:linear-gradient(135deg,#BFD5F7,#6484CE)}
+body[data-theme="klein"] .pv-card.t2 .ph{background:linear-gradient(135deg,#FFD1B3,#FFA978)}
+body[data-theme="klein"] .pv-card.t3 .ph{background:linear-gradient(135deg,#D9DEEF,#8F96B4)}
+body[data-theme="klein"] .pv-card.t4 .ph{background:linear-gradient(135deg,#6E6A94,#464563)}
+body[data-theme="cream"] .pv-card.t1 .ph{background:linear-gradient(135deg,#F8C9DC,#D37493)}
+body[data-theme="cream"] .pv-card.t2 .ph{background:linear-gradient(135deg,#C2EBDC,#86D9B4)}
+body[data-theme="cream"] .pv-card.t3 .ph{background:linear-gradient(135deg,#FFE4EE,#F5B3CC)}
+body[data-theme="cream"] .pv-card.t4 .ph{background:linear-gradient(135deg,#D6EEF4,#A8D4DE)}
+/* 序号水印：在任意占位色上都能读，取代原方案的 emoji 图标 */
+.pv-card .ph span{
+  font-size:22px; font-weight:600; color:#fff; opacity:.72;
+  font-variant-numeric:tabular-nums; letter-spacing:.5px;
+  text-shadow:0 1px 3px rgba(var(--c-shadow,90,130,170),.45);
+}
+/* 文件名：默认单行省略，悬停/聚焦时展开为整段 —— 长 md5 文件名需要能看到全貌 */
+.pv-card .cap{
+  font-size:12px; color:var(--c-text-2); line-height:1.4;
+  padding:var(--sp-2) var(--sp-3);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  transition:white-space .12s;
+}
+.pv-card:hover .cap,.pv-card:focus-visible .cap{white-space:normal; word-break:break-all}
+
+/* 勾选态：缩略图压暗 + 主色描边 + 右上角对勾（对钩用 CSS 双边框拼，不引额外资源） */
+.pv-card .check{
+  position:absolute; top:8px; right:8px; width:20px; height:20px;
+  border-radius:var(--r-full); background:var(--c-primary);
+  opacity:0; transform:scale(.7); transition:all .18s ease-out;
+  box-shadow:0 1px 4px rgba(var(--c-shadow,90,130,170),.35);
+}
+.pv-card .check::after{
+  content:""; position:absolute; left:6.5px; top:4px;
+  width:5px; height:9px; border:2px solid #fff; border-top:0; border-left:0;
+  transform:rotate(42deg);
+}
+.pv-card.selected{border-color:var(--c-primary)}
+.pv-card.selected .ph::after{
+  content:""; position:absolute; inset:0; background:rgba(var(--c-shadow,90,130,170),.42);
+}
+.pv-card.selected .check{opacity:1; transform:scale(1)}
 
 /* ========== 视图二：管理 ========== */
 .stat-row{display:flex; gap:var(--sp-4); margin-bottom:var(--sp-5)}
@@ -446,12 +606,17 @@ code{
         </g>
       </svg>
     </div>
-    <button class="nav-item active" data-view="upload"><svg class="ico"><use href="#i-upload"/></svg>上传</button>
-    <button class="nav-item" data-view="manage"><svg class="ico"><use href="#i-folder"/></svg>管理</button>
-    <button class="nav-item" data-view="settings"><svg class="ico"><use href="#i-gear"/></svg>设置</button>
-    <button class="nav-item" data-view="doc"><svg class="ico"><use href="#i-book"/></svg>规范</button>
+    <button class="nav-item active" data-view="upload" aria-label="上传">
+      <svg class="ico"><use href="#i-upload"/></svg><span class="nav-tip">上传</span></button>
+    <button class="nav-item" data-view="manage" aria-label="管理">
+      <svg class="ico"><use href="#i-folder"/></svg><span class="nav-tip">管理</span></button>
+    <button class="nav-item" data-view="settings" aria-label="设置">
+      <svg class="ico"><use href="#i-gear"/></svg><span class="nav-tip">设置</span></button>
+    <button class="nav-item" data-view="doc" aria-label="规范">
+      <svg class="ico"><use href="#i-book"/></svg><span class="nav-tip">规范</span></button>
     <div class="spacer"></div>
     <div class="avatar">A</div>
+
   </nav>
 
   <!-- ═══ 主区域（草图右侧大块）═══ -->
@@ -470,6 +635,87 @@ code{
         <button class="chip chip-btn" data-theme-btn="cream">B 樱粉若叶</button>
       </div>
     </header>
+
+    <!-- ═══ 识别结果栏 ═══
+         位置决策：它是「同一批图片的操作台」，必须与图区同屏；但绝不能放进滚动容器内部 ——
+         否则会被图片带着滚出视野（见下方 .grid-wrap 只滚图、不滚操作栏的分层约定）。
+         故作为 .main 的固定子项，与 topbar 并列，flex-shrink:0 保证永不被压缩。 -->
+    <section class="content preview-bar" id="view-preview" style="display:none">
+      <span class="pb-label">扫描到 <b>50</b> 张图片</span>
+      <span class="pb-sub">点击图片可勾选，再次点击取消</span>
+      <div class="pb-progress" id="pbProgress" role="progressbar" aria-label="上传进度"><span></span></div>
+      <div class="pb-actions">
+        <button class="btn btn-ghost btn-sm" id="btnReset" title="清空扫描结果（Esc）">重置</button>
+        <button class="btn btn-primary btn-sm" id="btnUpload">上传</button>
+      </div>
+    </section>
+
+    <!-- ═══ 图区滚动容器 ═══
+         全应用唯一可滚动层：操作栏（结果栏 + 顶栏）都在它外部，因此滚动时任何控件都不会位移或被遮挡。 -->
+    <div class="grid-wrap" id="gridWrap" style="display:none">
+      <div class="preview-grid" id="previewGrid">
+        <figure class="pv-card t1" style="--ar:1.42">
+          <div class="ph"><span>01</span></div>
+          <figcaption class="cap">hero_umi_banner.png</figcaption>
+          <span class="check" aria-hidden="true"></span>
+        </figure>
+        <figure class="pv-card t3" style="--ar:0.78">
+          <div class="ph"><span>02</span></div>
+          <figcaption class="cap">hutao_pv_cover.jpg</figcaption>
+          <span class="check" aria-hidden="true"></span>
+        </figure>
+        <figure class="pv-card t4" style="--ar:1.0">
+          <div class="ph"><span>03</span></div>
+          <figcaption class="cap">screenshot_0925_1042.webp</figcaption>
+          <span class="check" aria-hidden="true"></span>
+        </figure>
+        <figure class="pv-card t2" style="--ar:1.62">
+          <div class="ph"><span>04</span></div>
+          <figcaption class="cap">2b1e5bc57c3a44d95b3a19eebed17919.png</figcaption>
+          <span class="check" aria-hidden="true"></span>
+        </figure>
+        <figure class="pv-card t3" style="--ar:1.34">
+          <div class="ph"><span>05</span></div>
+          <figcaption class="cap">benghuai_3rd_font_table.png</figcaption>
+          <span class="check" aria-hidden="true"></span>
+        </figure>
+        <figure class="pv-card t1" style="--ar:0.86">
+          <div class="ph"><span>06</span></div>
+          <figcaption class="cap">yuzu_soft_kv_02.jpg</figcaption>
+          <span class="check" aria-hidden="true"></span>
+        </figure>
+        <figure class="pv-card t4" style="--ar:1.5">
+          <div class="ph"><span>07</span></div>
+          <figcaption class="cap">anniversary_3rd_kv.png</figcaption>
+          <span class="check" aria-hidden="true"></span>
+        </figure>
+        <figure class="pv-card t2" style="--ar:0.92">
+          <div class="ph"><span>08</span></div>
+          <figcaption class="cap">guiling_zhunxiao_poster.png</figcaption>
+          <span class="check" aria-hidden="true"></span>
+        </figure>
+        <figure class="pv-card t3" style="--ar:0.72">
+          <div class="ph"><span>09</span></div>
+          <figcaption class="cap">chibi_pair_sketch.jpg</figcaption>
+          <span class="check" aria-hidden="true"></span>
+        </figure>
+        <figure class="pv-card t1" style="--ar:1.28">
+          <div class="ph"><span>10</span></div>
+          <figcaption class="cap">cocogoat_mail_box.png</figcaption>
+          <span class="check" aria-hidden="true"></span>
+        </figure>
+        <figure class="pv-card t4" style="--ar:0.8">
+          <div class="ph"><span>11</span></div>
+          <figcaption class="cap">sea_moon_illust.png</figcaption>
+          <span class="check" aria-hidden="true"></span>
+        </figure>
+        <figure class="pv-card t2" style="--ar:1.46">
+          <div class="ph"><span>12</span></div>
+          <figcaption class="cap">fuxuan_portrait_night.jpg</figcaption>
+          <span class="check" aria-hidden="true"></span>
+        </figure>
+      </div>
+    </div>
 
     <!-- 视图一：文件放置 -->
     <section class="content" id="view-upload">
@@ -824,6 +1070,52 @@ body[data-theme="forest"]{              /* ← 新主题名，小写单词 */
         <li><b>验收</b>：切到新主题后 Logo 底版 = 新 <code>--logo-bg</code>，且扫描线、光环、投影、上传箭头全部同步换色（本页点 Logo 可预览动效）</li>
       </ul>
 
+      <h2>🧭 滚动架构与工具栏（本次修订）</h2>
+      <p class="hint" style="margin:0 0 12px">原方案把「重置 / 上传」放在滚动容器内部，滚动时工具栏会跟着图片一起滚走；改用 <code>position:sticky</code> 又会形成浮层遮住右下角图片。本轮的修法是<b>把操作栏整个移出滚动容器</b>——滚动只是图区自己的事，任何控件都不参与其中。</p>
+      <h3>三层滚动架构（各司其职）</h3>
+      <table>
+        <tr><th>层</th><th>类名</th><th>关键属性</th><th>职责</th></tr>
+        <tr><td>外层</td><td><code>.main</code></td><td><code>flex-direction:column; overflow:hidden</code></td><td>撑满视口高度，自身不滚</td></tr>
+        <tr><td>操作栏</td><td><code>.preview-bar</code></td><td><code>flex:0 0 auto; overflow:visible</code></td><td>固定条状，永不位移、永不被压缩</td></tr>
+        <tr><td>图区</td><td><code>.grid-wrap</code></td><td><code>flex:1; min-height:0; overflow-y:auto</code></td><td><b>全应用唯一滚动层</b></td></tr>
+      </table>
+      <ul class="spec-list">
+        <li><b>坑 ①：<code>min-height:0</code> 不能省</b>。flex 子项默认 <code>min-height:auto</code>，不加它容器会被内容撑破，<code>overflow-y:auto</code> 完全失效、根本滚不起来</li>
+        <li><b>坑 ②：条状栏若同时挂 <code>.content</code> 类</b>，必须显式复位 <code>flex:0 0 auto</code> 与 <code>overflow:visible</code>。否则 <code>.content</code> 的 <code>flex:1</code> 会把它从 56px 撑成数百 px 的大块</li>
+        <li><b>坑 ③：网格子项要加 <code>min-width:0</code></b>。默认 <code>min-width:auto</code> 会被超长文件名（如 md5 串）撑爆整列</li>
+        <li><b>坑 ④：占位色不要写进行内 <code>style</code></b>。行内自定义属性会脱离 <code>body[data-theme]</code> 的覆盖链，切主题时颜色不变；改用 <code>.t1–.t4</code> 类承载</li>
+      </ul>
+      <h3>工具栏「悬停聚焦」让位动效</h3>
+      <p class="hint" style="margin:0 0 8px">工具栏已移出滚动层，正常滚动不会再挡图。但拖拽滚动条时鼠标会长期停留在右上角，故补一层「滚动时退让」。状态机只有两个状态，多套监听会互相打架：</p>
+      <table>
+        <tr><th>状态</th><th>视觉</th><th>触发</th></tr>
+        <tr><td><code>focused</code></td><td><code>opacity:1</code>，可交互</td><td>滚动停止 / 鼠标移入工具栏自身 / 按 <code>Esc</code></td></tr>
+        <tr><td><code>dim</code></td><td><code>opacity:.38</code> + <code>pointer-events:none</code></td><td>检测到滚动（<code>wheel</code> 或 <code>scroll</code>）</td></tr>
+      </table>
+      <ul class="spec-list">
+        <li><b>恢复延时按事件分档</b>：<code>wheel</code>（滚轮/触控板，即发即停）用 <b>600ms</b>；<code>scroll</code>（拖动滚动条，按住时可能中途停顿）用 <b>1200ms</b>。若统一用 600ms，用户按住滚动条停顿超过 0.6 秒时工具栏会突然弹回来</li>
+        <li><b>不要监听图区的 <code>mouseenter</code> 来召回</b>：拖滚动条时鼠标必然在图区内，这个监听会让让位规则当场失效。召回只认「移入工具栏自身」</li>
+        <li><b><code>opacity</code> 不要降到 0</b>：保留 <code>.38</code> 的存在感，用户知道「它还在，鼠标过去就回来」；直接消失会让人以为工具栏丢了</li>
+        <li><b><code>pointer-events:none</code> 不可省</b>：这是让图区能穿透点击的关键</li>
+      </ul>
+<pre>/* 让位两态：transition 与主声明块合并，避免同一选择器拆成两处 */
+.preview-bar{
+  flex:0 0 auto; overflow:visible;      /* 复位 .content 的 flex:1 / overflow:auto */
+  transition:opacity .22s ease-out;
+}
+.preview-bar.pb-dim{opacity:.38; pointer-events:none}
+
+/* 恢复延时按事件分档 */
+gridWrap.addEventListener("wheel",  () => pbDimNow(600),  {passive:true});  // 滚轮
+gridWrap.addEventListener("scroll", () => pbDimNow(1200), {passive:true});  // 拖滚动条
+pbBar.addEventListener("mouseenter", pbFocus);
+document.addEventListener("keydown", e => { if(e.key==="Esc") pbFocus(); });</pre>
+      <ul class="spec-list">
+        <li><b>侧栏收窄</b>：72px → <b>56px</b>，导航文字改为悬停滑出的浮层提示（<code>.nav-tip</code>），不占常驻宽度。图区因此多出 16px，功能入口一个不少</li>
+        <li><b>交付替换点</b>：原型中 <code>.ph</code> 是双色渐变占位块（真实位图无法响应 <code>data-theme</code>）。接入真实图片时把 <code>.ph</code> 换成 <code>&lt;img&gt;</code> 即可，卡片骨架、网格布局、勾选态全部无需改动</li>
+        <li><b>已实测验证</b>：60 张卡片、可滚 2231px 的场景下，滚动 1116px 后工具栏 y 坐标恒为 56；滚动中 <code>dim</code> 生效且可穿透；三主题下占位色各不相同</li>
+      </ul>
+
       <h2>🧩 Figma 组件拆分建议</h2>
       <ul class="spec-list">
         <li><b>NavItem</b>（icon+label，Variant: default / hover / active）</li>
@@ -847,6 +1139,7 @@ body[data-theme="forest"]{              /* ← 新主题名，小写单词 */
 // ═══ 原型交互：侧边导航切换视图 ═══
 const titles={
   upload:["文件放置","拖入文件即可上传"],
+  preview:["扫描结果","选择要上传的图片"],
   manage:["文件管理","共 326 个文件"],
   settings:["设置","图床配置与上传偏好"],
   doc:["设计规范","令牌 · 组件 · 原型连线"]
@@ -855,14 +1148,23 @@ document.querySelectorAll(".nav-item").forEach(btn=>{
   btn.addEventListener("click",()=>{
     document.querySelectorAll(".nav-item").forEach(b=>b.classList.remove("active"));
     btn.classList.add("active");
-    const v=btn.dataset.view;
-    ["upload","manage","settings","doc"].forEach(k=>{
-      document.getElementById("view-"+k).style.display=k===v?"":"none";
-    });
-    document.getElementById("pageTitle").textContent=titles[v][0];
-    document.getElementById("pageCrumb").textContent=titles[v][1];
+    showView(btn.dataset.view);
   });
 });
+/* showView：预览态由「结果栏 + 图区」两个兄弟节点共同构成，
+   它们都不是 .content，所以单独处理（见下方分层说明）。 */
+function showView(v){
+  ["upload","manage","settings","doc"].forEach(k=>{
+    const el=document.getElementById("view-"+k);
+    if(el) el.style.display=(k===v)?"":"none";
+  });
+  const isPreview=(v==="preview");
+  document.getElementById("view-preview").style.display=isPreview?"":"none";
+  document.getElementById("gridWrap").style.display=isPreview?"":"none";
+  document.getElementById("pageTitle").textContent=titles[v][0];
+  document.getElementById("pageCrumb").textContent=titles[v][1];
+}
+
 let toastTimer=null;
 function showToast(text){
   const t=document.getElementById("toast");
@@ -893,10 +1195,106 @@ dz.addEventListener("drop",e=>{e.preventDefault();dz.classList.remove("drag");
   dz.querySelector("h2").textContent="⬆ 正在上传图片…";
   clearTimeout(upTimer);
   upTimer=setTimeout(()=>{logoState(null);upTimer=null;
-    dz.querySelector("h2").textContent="✅ 上传完成（原型演示）";
-    showToast("上传完成，外链已复制");
-    setTimeout(()=>dz.querySelector("h2").textContent="将文件拖放到此处",1800);
-  },2200);});
+    dz.querySelector("h2").textContent="将文件拖放到此处";
+    showView("preview");                 // 拖入文件后落到「扫描结果」态
+    showToast("已扫描到 50 张图片，勾选后上传");
+  },1400);});
+
+// ═══ 扫描结果：卡片勾选 / 重置 / 上传 ═══
+const grid=document.getElementById("previewGrid");
+const pbLabel=document.querySelector("#view-preview .pb-label");
+let selCount=0;
+function syncPreviewBar(){
+  const total=grid.querySelectorAll(".pv-card").length;
+  // 文案随勾选数变化：未勾选时汇报总数，勾选后汇报已选数
+  pbLabel.innerHTML=selCount>0
+    ? "已选择 <b>"+selCount+"</b> / "+total+" 张图片"
+    : "扫描到 <b>"+total+"</b> 张图片";
+}
+grid.addEventListener("click",e=>{
+  const card=e.target.closest(".pv-card");
+  if(!card) return;
+  card.classList.toggle("selected");
+  selCount=grid.querySelectorAll(".pv-card.selected").length;
+  syncPreviewBar();
+});
+// 键盘可达：空格 / 回车 切换勾选
+grid.addEventListener("keydown",e=>{
+  if(e.key!==" "&&e.key!=="Enter") return;
+  const card=e.target.closest(".pv-card");
+  if(!card) return;
+  e.preventDefault(); card.click();
+});
+// 重置：清空全部勾选
+document.getElementById("btnReset").addEventListener("click",()=>{
+  grid.querySelectorAll(".pv-card.selected").forEach(c=>c.classList.remove("selected"));
+  selCount=0; syncPreviewBar();
+  showToast("已重置选择");
+});
+// 上传：模拟进度与禁用态，避免批量上传时用户不知道发生了什么
+const pbProgress=document.getElementById("pbProgress");
+const btnUpload=document.getElementById("btnUpload");
+let upProgressTimer=null;
+btnUpload.addEventListener("click",()=>{
+  if(upProgressTimer) return;                     // 防重复点击
+  if(selCount===0){ showToast("请先勾选要上传的图片"); return; }
+  const total=selCount;
+  pbFocus();
+  btnUpload.disabled=true;                        // 禁用态：按钮不可再点
+  btnUpload.textContent="上传中…";
+  pbProgress.classList.add("on");
+  const bar=pbProgress.firstElementChild;
+  let pct=0;
+  upProgressTimer=setInterval(()=>{
+    pct=Math.min(100,pct+Math.random()*18+6);
+    bar.style.width=pct.toFixed(0)+"%";
+    if(pct>=100){
+      clearInterval(upProgressTimer); upProgressTimer=null;
+      btnUpload.disabled=false; btnUpload.textContent="上传";
+      setTimeout(()=>{pbProgress.classList.remove("on"); bar.style.width="0"},600);
+      showToast(total+" 张图片上传完成，外链已复制");
+      grid.querySelectorAll(".pv-card.selected").forEach(c=>c.classList.remove("selected"));
+      selCount=0; syncPreviewBar();
+    }
+  },220);
+});
+
+// ═══ 工具栏「悬停聚焦」：只在滚动时退场，鼠标一碰就回来 ═══
+// 设计取舍：工具栏已移出滚动容器，正常滚动不会再挡图；
+// 但用户来回拖拽或滚动时鼠标会长期停留在右上角，浮层仍可能干扰阅读，故补这层动态退让。
+//
+// 状态机（只有两个真实状态，避免多套监听互相打架）：
+//   focused  聚焦：opacity 1，可交互
+//   dim      让位：opacity .38 + pointer-events:none，图区可穿透点击
+// 触发规则：
+//   → dim   检测到滚动（wheel 或 scroll，两者任一即算「正在翻图」）
+//   → focused 滚动停止 600ms / 鼠标移入工具栏自身 / 按 Esc
+// 注意：鼠标进入「图区」不召回工具栏 —— 否则拖滚动条时（鼠标必在图区内）
+//      会让位规则立刻失效。召回只认「移入工具栏自身」。
+const pbBar=document.getElementById("view-preview");
+const gridWrap=document.getElementById("gridWrap");
+let pbTimer=null;
+function pbFocus(){
+  clearTimeout(pbTimer); pbTimer=null;
+  pbBar.classList.remove("pb-dim");
+}
+function pbDimNow(delay){               // 进入让位，delay 后自动恢复
+  pbBar.classList.add("pb-dim");
+  clearTimeout(pbTimer);
+  pbTimer=setTimeout(()=>{ pbTimer=null; pbBar.classList.remove("pb-dim"); },delay);
+}
+// 滚轮 / 触控板：事件密集且即发即停，停手 600ms 就恢复（最跟手）
+gridWrap.addEventListener("wheel",()=>pbDimNow(600),{passive:true});
+// 拖动滚动条：按住时可能中途停顿，但松手后 scroll 事件立即断流。
+// 这里用较长的 1200ms —— 宁可按住期间一直让位，也不要按住不动时工具栏突然弹回来。
+gridWrap.addEventListener("scroll",()=>pbDimNow(1200),{passive:true});
+// 召回：只认移入工具栏自身，以及键盘 Esc
+pbBar.addEventListener("mouseenter",pbFocus);
+pbBar.addEventListener("focusin",pbFocus);
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape") pbFocus();
+});
+syncPreviewBar();
 // ═══ Logo 配色：主题化令牌驱动 ═══
 // 关键设计：JS **不再注入任何色值**，只负责在 <body> 上写两个状态属性：
 //   data-theme = "" | "klein" | "cream"   → 决定走哪一套 --logo-* 变量
