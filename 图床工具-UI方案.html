@@ -248,6 +248,19 @@ body{
 .nav-item:hover .nav-tip,.nav-item:focus-visible .nav-tip{
   opacity:1; transform:translateY(-50%) translateX(0);
 }
+/* 计数角标：贴在图标右上角，与悬停浮层同为「不占常驻宽度」的信息承载方式。
+   无扫描结果时由 JS 摘掉 .has-badge，角标隐藏而不是显示 0。 */
+.nav-badge{
+  position:absolute; top:2px; right:2px;
+  min-width:16px; height:16px; padding:0 4px;
+  display:none; align-items:center; justify-content:center;
+  background:var(--c-primary); color:#fff;
+  font-size:10px; font-weight:600; line-height:1;
+  border-radius:var(--r-full);
+  box-shadow:0 0 0 2px var(--c-surface);   /* 与侧栏同色描边，从图标上"浮"起来 */
+  pointer-events:none;
+}
+.nav-item.has-badge .nav-badge{display:flex}
 /* 侧栏底部头像与 Logo 同窄：44px 栏宽下用 34px 圆 */
 .avatar{
   width:34px;height:34px;border-radius:var(--r-full);
@@ -400,9 +413,12 @@ body[data-theme="cream"] .pv-card.t4 .ph{background:linear-gradient(135deg,#D6EE
   font-variant-numeric:tabular-nums; letter-spacing:.5px;
   text-shadow:0 1px 3px rgba(var(--c-shadow,90,130,170),.45);
 }
-/* 文件名：默认单行省略，悬停/聚焦时展开为整段 —— 长 md5 文件名需要能看到全貌 */
+/* 文件名：默认单行省略，悬停/聚焦时展开为整段 —— 长 md5 文件名需要能看到全貌。
+   可读性处理：色值由 --c-text-2（柔靛蓝灰 #6B85A2）加深为 --c-text（正文色 #3E5670）。
+   原因是 12px 小字 + 次级灰在白底上对比不足（实测约 4.0:1，接近下限），
+   文件名是这一屏的**主要识别信息**，理应达到正文级对比度，而非「辅助信息」等级。 */
 .pv-card .cap{
-  font-size:12px; color:var(--c-text-2); line-height:1.4;
+  font-size:12px; color:var(--c-text); line-height:1.4;
   padding:var(--sp-2) var(--sp-3);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   transition:white-space .12s;
@@ -608,6 +624,10 @@ code{
     </div>
     <button class="nav-item active" data-view="upload" aria-label="上传">
       <svg class="ico"><use href="#i-upload"/></svg><span class="nav-tip">上传</span></button>
+    <button class="nav-item" data-view="preview" aria-label="扫描结果">
+      <svg class="ico"><use href="#i-image"/></svg><span class="nav-tip">扫描结果</span>
+      <!-- 角标：显示已扫描到的图片数。无结果时隐藏（JS 控制 .has-badge） -->
+      <span class="nav-badge" id="navBadge">12</span></button>
     <button class="nav-item" data-view="manage" aria-label="管理">
       <svg class="ico"><use href="#i-folder"/></svg><span class="nav-tip">管理</span></button>
     <button class="nav-item" data-view="settings" aria-label="设置">
@@ -1119,11 +1139,21 @@ document.addEventListener("keydown", e => { if(e.key==="Esc") pbFocus(); });</pr
       <h2>🧩 Figma 组件拆分建议</h2>
       <ul class="spec-list">
         <li><b>NavItem</b>（icon+label，Variant: default / hover / active）</li>
+        <li><b>NavBadge</b>（计数角标，Variant: hidden / count；16×16 胶囊 + 2px 侧栏同色描边，从图标上"浮"起）</li>
         <li><b>DropZone</b>（Variant: idle / hover / dragging / error）</li>
         <li><b>FileCard</b>（缩略图 + 文件名 + 大小 + 状态 Tag，可做 Auto Layout 网格）</li>
         <li><b>StatCard</b>（标签 + 数值）、<b>Toggle</b>、<b>SearchInput</b>、<b>Button</b>(primary/ghost)</li>
         <li>全部套用 Color / Text / Effect 样式，不出现硬编码色值</li>
       </ul>
+      <h2>🔍 怎么查看「扫描图片后」的界面变化</h2>
+      <table>
+        <tr><th>方式</th><th>操作</th><th>看到什么</th></tr>
+        <tr><td>直接看结果页</td><td>点侧栏第 2 个图标（<b>扫描结果</b>，带数字角标）</td><td>完整的图片网格 + 重置/上传工具栏，无需先拖文件</td></tr>
+        <tr><td>走完整流程</td><td>在「上传」页拖任意文件进拖放区（或点"选择文件"）</td><td>Logo 转扫描态 → 约 1.4s 后自动跳到结果页，侧栏高亮同步、角标出现、滚动归零</td></tr>
+        <tr><td>看滚动行为</td><td>结果页里上下滚轮或拖动滚动条</td><td>工具栏<b>纹丝不动</b>，仅淡到 38% 让位；停手自动恢复，鼠标移到工具栏上或按 <code>Esc</code> 立即召回</td></tr>
+        <tr><td>看勾选与上传</td><td>点任意图片勾选（可多选）→ 点「上传」</td><td>结果栏文案变"已选择 N / 12"、进度条出现、按钮转禁用态"上传中…"，完成后自动清空勾选</td></tr>
+        <tr><td>看主题联动</td><td>顶栏切「A 群青夕橙」「B 樱粉若叶」</td><td>占位色板、按钮、Logo 底版整体换色，卡片骨架不变</td></tr>
+      </table>
       <h2>🔗 原型连线（Prototype）</h2>
       <ul class="spec-list">
         <li>NavItem.onTap → 切换对应 Frame（Smart Animate · 200ms · Ease-out）</li>
@@ -1144,6 +1174,9 @@ const titles={
   settings:["设置","图床配置与上传偏好"],
   doc:["设计规范","令牌 · 组件 · 原型连线"]
 };
+/* 导航点击：切视图 + 同步高亮。
+   注意 showView 也被拖放流程以编程方式调用，那时不能改动导航高亮
+   （用户还在「上传」页，只是被自动带进了结果页），所以高亮只在此处维护。 */
 document.querySelectorAll(".nav-item").forEach(btn=>{
   btn.addEventListener("click",()=>{
     document.querySelectorAll(".nav-item").forEach(b=>b.classList.remove("active"));
@@ -1151,9 +1184,11 @@ document.querySelectorAll(".nav-item").forEach(btn=>{
     showView(btn.dataset.view);
   });
 });
-/* showView：预览态由「结果栏 + 图区」两个兄弟节点共同构成，
-   它们都不是 .content，所以单独处理（见下方分层说明）。 */
-function showView(v){
+/* 显示指定视图。
+   预览态由「结果栏 + 图区」两个兄弟节点共同构成，它们都不是 .content，
+   所以必须单独处理（分层原因见 §1.1 滚动架构）。
+   opt.syncNav = true 时同步导航高亮（供拖放流程等编程调用使用）。 */
+function showView(v, opt){
   ["upload","manage","settings","doc"].forEach(k=>{
     const el=document.getElementById("view-"+k);
     if(el) el.style.display=(k===v)?"":"none";
@@ -1161,8 +1196,25 @@ function showView(v){
   const isPreview=(v==="preview");
   document.getElementById("view-preview").style.display=isPreview?"":"none";
   document.getElementById("gridWrap").style.display=isPreview?"":"none";
-  document.getElementById("pageTitle").textContent=titles[v][0];
-  document.getElementById("pageCrumb").textContent=titles[v][1];
+  // 切进预览态时把滚动位置归零：否则从别的视图切回来会停在上次的滚动中途，
+  // 用户看到的是"半截列表"，会误以为图片丢失或顺序错乱。
+  // 注意用编程方式切视图（拖放流程）时也一并归零——拖完文件应当从头看起。
+  if(isPreview) document.getElementById("gridWrap").scrollTop=0;
+  const info=titles[v]||titles.upload;
+  document.getElementById("pageTitle").textContent=info[0];
+  document.getElementById("pageCrumb").textContent=info[1];
+  if(opt&&opt.syncNav){
+    document.querySelectorAll(".nav-item").forEach(b=>{
+      b.classList.toggle("active", b.dataset.view===v);
+    });
+  }
+}
+/* 导航角标：显示已扫描到的图片数，无结果时隐藏 */
+function setNavBadge(n){
+  const badge=document.getElementById("navBadge");
+  const item=badge.closest(".nav-item");
+  if(n>0){ badge.textContent=n; item.classList.add("has-badge"); }
+  else   { item.classList.remove("has-badge"); }
 }
 
 let toastTimer=null;
@@ -1182,6 +1234,9 @@ document.querySelectorAll(".btn-primary").forEach(b=>{
 const dz=document.getElementById("dropzone");
 const logo=document.getElementById("logo");
 let upTimer=null;
+// 图区网格引用提前到此处声明：拖放回调（下方）需要读卡片数量刷角标，
+// 而回调虽在 1400ms 后才执行，变量声明仍须先于任何可能的执行路径，避免 TDZ。
+const grid=document.getElementById("previewGrid");
 function logoState(s){
   logo.classList.remove("scanning","uploading");
   if(s) logo.classList.add(s);
@@ -1196,12 +1251,14 @@ dz.addEventListener("drop",e=>{e.preventDefault();dz.classList.remove("drag");
   clearTimeout(upTimer);
   upTimer=setTimeout(()=>{logoState(null);upTimer=null;
     dz.querySelector("h2").textContent="将文件拖放到此处";
-    showView("preview");                 // 拖入文件后落到「扫描结果」态
-    showToast("已扫描到 50 张图片，勾选后上传");
+    // 拖入后自动落到「扫描结果」并同步导航高亮 —— 用户此刻确实"在"这个视图，
+    // 若只切内容不改高亮，导航会仍指着「上传」，状态就自相矛盾了。
+    showView("preview",{syncNav:true});
+    setNavBadge(grid.querySelectorAll(".pv-card").length);   // 角标显示实际扫描数
+    showToast("已扫描到 "+grid.querySelectorAll(".pv-card").length+" 张图片，勾选后上传");
   },1400);});
 
 // ═══ 扫描结果：卡片勾选 / 重置 / 上传 ═══
-const grid=document.getElementById("previewGrid");
 const pbLabel=document.querySelector("#view-preview .pb-label");
 let selCount=0;
 function syncPreviewBar(){
