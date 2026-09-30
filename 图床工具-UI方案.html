@@ -365,12 +365,29 @@ body{
           mask-image:linear-gradient(180deg,
     transparent 0, #000 14px, #000 calc(100% - 20px), transparent 100%);
 }
-/* 每列必须加 min-width:0：grid 子项默认 min-width:auto，长文件名（如那串 md5）会把列撑爆 */
+/* —— 瀑布流（waterfall）——
+   等高列宽 + 每张卡保持图片自身比例，卡片高度因此参差，纵向紧密咬合。
+   为什么不用 grid：grid 的每行高度由该行最高的那张决定，矮图下方会留下大片空白
+   （要么留空、要么把图裁成统一比例）。图片墙的首要目的是"扫一眼看清有哪些图"，
+   原构图比整齐的行列更重要，故改用多列布局。
+
+   `columns:4 220px` = 最多 4 列、每列至少 220px —— 容器变窄时自动降列，
+   不需要媒体查询。注意多列布局的两个特性：
+   ① 没有 gap，纵向间距靠子项 margin-bottom；
+   ② 子项默认会被"拆开"跨列续排，必须 break-inside:avoid，否则一张图会被切成两半。 */
 .preview-grid{
-  display:grid; grid-template-columns:repeat(auto-fill, minmax(168px,1fr));
-  gap:var(--sp-4); align-items:start;
+  columns:4 220px;
+  column-gap:var(--sp-3);
 }
-.preview-grid > *{min-width:0}
+/* 注意选择器特异性：`.pv-card` 自己的 `margin:0` 与本规则同为 (0,1,0)，
+   但 `.pv-card` 写在后面 —— 用 `.preview-grid > .pv-card`(0,2,0) 才压得住。
+   实测踩过：只写 `.preview-grid > *` 时 margin 被吃掉，纵向间距为 0，
+   整面墙的卡片紧贴成一条（列内的"呼吸缝"全没了，退化成无缝堆叠）。 */
+.preview-grid > .pv-card{
+  break-inside:avoid;
+  -webkit-column-break-inside:avoid;   /* 旧 Blink/WebKit 前缀，Chrome 108 之前需要 */
+  margin:0 0 var(--sp-3);
+}
 
 /* —— 图片卡片：遮罩层方案 ——
    不用 <img>，改为每张一个 .ph 占位块（双色斜向渐变 = 当前主题的插画色板）。
@@ -392,7 +409,8 @@ body{
 .pv-card:focus-visible{border-color:var(--c-primary); box-shadow:0 0 0 3px var(--c-primary-soft)}
 .pv-card .ph{
   /* 比例走行内 --ar（每张图真实宽高比，属内容而非主题，故保留行内）；
-     深浅双色走 .t1–.t4 类，随主题切换 */
+     深浅双色走 .t1–.t4 类，随主题切换。
+     瀑布流里卡片高度完全由这个比例决定 —— 不再有任何等高校验，竖图横图各按其本色排布。 */
   aspect-ratio:var(--ar,1); position:relative;
   background:linear-gradient(135deg,#B4E4F7,#4E93C0);
   display:flex; align-items:center; justify-content:center;
@@ -422,28 +440,35 @@ body[data-theme="cream"] .pv-card.t4 .ph{background:linear-gradient(135deg,#D6EE
    加载成功由 JS 给卡片挂 .loaded 后隐藏。 */
 .pv-card.real .ph span{z-index:1}
 .pv-card.real.loaded .ph span{display:none}
-/* 竖幅图限高：真实照片里竖构图（如 9:16）按原比例会撑到 300px+，
-   把网格拉得极长、一屏放不下几张。
-   做法是在 JS 回填比例时把 --ar 夹到下限（见 buildCards 的 AR_MIN），
-   而不是用 max-height —— 后者与 aspect-ratio 冲突：宽度不变时盒子会保持原宽，
-   图片被 cover 裁成瘦长条，反而更难看。夹比例则让"瘦高"变成"稍宽"，视觉更稳。
-   代价是竖图的上下会被裁掉一些，可接受：照片墙的首要是"扫一眼看清有哪些图"，
-   要看全图点开详情即可。 */
+/* 极端比例护栏：瀑布流对比例是"照单全收"的，但有两种图会直接毁掉整面墙 ——
+   长网页截图和超宽全景拼接。护栏定在 [0.4, 3.0]：
+   手机全面屏截图（9:19.5 ≈ 0.46）与 3:1 全景都能原样通过，
+   常规照片、截图完全不受影响，只有 1:4 以上的长图才会被盖住。
+   （试过放到 0.25，但列宽 319px 时它对应 1276px 高的柱子，比视口还高，护栏形同虚设。）
+   盖住即用 object-fit:cover 居中裁切，不是拉伸变形。 */
 .pv-card .ph span{
   font-size:22px; font-weight:600; color:#fff; opacity:.72;
   font-variant-numeric:tabular-nums; letter-spacing:.5px;
   text-shadow:0 1px 3px rgba(var(--c-shadow,90,130,170),.45);
 }
-/* 文件名：默认单行省略，悬停/聚焦时展开为整段 —— 长 md5 文件名需要能看到全貌。
-   可读性处理：色值由 --c-text-2（柔靛蓝灰 #6B85A2）加深为 --c-text（正文色 #3E5670）。
-   原因是 12px 小字 + 次级灰在白底上对比不足（实测约 4.0:1，接近下限），
-   文件名是这一屏的**主要识别信息**，理应达到正文级对比度，而非「辅助信息」等级。 */
+/* 文件名：瀑布流里卡片就是图片本身（贴着圆角、无底色、无文件名条），
+   所以文件名不再常驻底部，而是压在下沿的渐变浮层里，悬停 / 键盘聚焦 / 勾选时浮现。
+   可读性反而更好：由"12px 次级灰 + 白底"（约 4.0:1，逼近下限）改为
+   "12px 白字 + 深色柔影底"（约 12:1）。长文件名展开为多行时浮层**向上生长**，
+   因为绝对定位脱离文档流，不会改变卡片高度、也就不会扰动瀑布流的排布。 */
 .pv-card .cap{
-  font-size:12px; color:var(--c-text); line-height:1.4;
-  padding:var(--sp-2) var(--sp-3);
+  position:absolute; left:0; right:0; bottom:0;
+  padding:20px var(--sp-3) var(--sp-2);
+  background:linear-gradient(180deg,
+    rgba(var(--c-shadow,90,130,170),0) 0,
+    rgba(var(--c-shadow,90,130,170),.55) 45%,
+    rgba(var(--c-shadow,90,130,170),.88) 100%);
+  color:#fff; font-size:12px; line-height:1.35;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  transition:white-space .12s;
+  opacity:0; pointer-events:none; transition:opacity .18s ease-out;
 }
+.pv-card:hover .cap,.pv-card:focus-visible .cap,
+.pv-card.selected .cap{opacity:1}
 .pv-card:hover .cap,.pv-card:focus-visible .cap{white-space:normal; word-break:break-all}
 
 /* 勾选态：缩略图压暗 + 主色描边 + 右上角对勾（对钩用 CSS 双边框拼，不引额外资源） */
@@ -1126,7 +1151,7 @@ body[data-theme="forest"]{              /* ← 新主题名，小写单词 */
       <ul class="spec-list">
         <li><b>坑 ①：<code>min-height:0</code> 不能省</b>。flex 子项默认 <code>min-height:auto</code>，不加它容器会被内容撑破，<code>overflow-y:auto</code> 完全失效、根本滚不起来</li>
         <li><b>坑 ②：条状栏若同时挂 <code>.content</code> 类</b>，必须显式复位 <code>flex:0 0 auto</code> 与 <code>overflow:visible</code>。否则 <code>.content</code> 的 <code>flex:1</code> 会把它从 56px 撑成数百 px 的大块</li>
-        <li><b>坑 ③：网格子项要加 <code>min-width:0</code></b>。默认 <code>min-width:auto</code> 会被超长文件名（如 md5 串）撑爆整列</li>
+        <li><b>坑 ③：网格子项要加 <code>min-width:0</code></b>。默认 <code>min-width:auto</code> 会被超长文件名（如 md5 串）撑爆整列。这条对管理页的 <code>.file-grid</code> 仍然成立；照片墙改用瀑布流后，文件名是<b>绝对定位浮层</b>、脱离文档流，天然不参与列宽的 min-content 计算，不必再靠 <code>min-width:0</code> 兜底</li>
         <li><b>坑 ④：占位色不要写进行内 <code>style</code></b>。行内自定义属性会脱离 <code>body[data-theme]</code> 的覆盖链，切主题时颜色不变；改用 <code>.t1–.t4</code> 类承载</li>
       </ul>
       <h3>工具栏「悬停聚焦」让位动效</h3>
@@ -1157,12 +1182,29 @@ document.addEventListener("keydown", e => { if(e.key==="Esc") pbFocus(); });</pr
       <ul class="spec-list">
         <li><b>侧栏收窄</b>：72px → <b>56px</b>，导航文字改为悬停滑出的浮层提示（<code>.nav-tip</code>），不占常驻宽度。图区因此多出 16px</li>
         <li><b>侧栏只放四个常驻页</b>：上传 / 管理 / 设置 / 规范。「扫描结果」不进侧栏——它不是常驻页面，而是上传流程的中间态，由拖图或点扫描区带出（早期版本曾给它一个带计数角标的侧栏项，属冗余入口，已移除）</li>
-        <li><b>交付替换点</b>：原型中 <code>.ph</code> 是双色渐变占位块（真实位图无法响应 <code>data-theme</code>）。接入真实图片时把 <code>.ph</code> 换成 <code>&lt;img&gt;</code> 即可，卡片骨架、网格布局、勾选态全部无需改动</li>
+        <li><b>交付替换点</b>：原型中 <code>.ph</code> 是双色渐变占位块（真实位图无法响应 <code>data-theme</code>）。接入真实图片时把 <code>.ph</code> 换成 <code>&lt;img&gt;</code> 即可，卡片骨架、瀑布流布局、勾选态全部无需改动</li>
         <li><b>已实测验证</b>：60 张卡片、可滚 2231px 的场景下，滚动 1116px 后工具栏 y 坐标恒为 56；滚动中 <code>dim</code> 生效且可穿透；三主题下占位色各不相同</li>
       </ul>
 
+      <h3>照片墙：瀑布流布局（waterfall）</h3>
+      <p class="hint" style="margin:0 0 12px">等高列宽 + 每张卡保持<b>图片自身比例</b>，卡片高度因此参差、纵向紧密咬合。参考稿就是这样一面墙：没有统一行高、没有文件名条，卡片就是图片本身。</p>
+      <table>
+        <tr><th>要素</th><th>实现</th><th>为什么这么做</th></tr>
+        <tr><td>列</td><td><code>columns:4 220px</code></td><td>最多 4 列、每列至少 220px；容器变窄自动降列，不需要媒体查询</td></tr>
+        <tr><td>横向间距</td><td><code>column-gap:var(--sp-3)</code></td><td>多列布局<b>没有 <code>gap</code></b>，横向只能靠 column-gap</td></tr>
+        <tr><td>纵向间距</td><td>子项 <code>margin-bottom</code></td><td>同理没有 gap —— 且这里埋了坑 ⑨（特异性）</td></tr>
+        <tr><td>不跨列</td><td><code>break-inside:avoid</code></td><td>不加的话一张图会被从中间切开、续到下一列</td></tr>
+        <tr><td>卡片高度</td><td><code>aspect-ratio:var(--ar)</code></td><td>高度＝图片真实比例，<b>不再钳制到统一区间</b>（坑 ⑦ 已改写）</td></tr>
+        <tr><td>文件名</td><td>绝对定位浮层，悬停 / 聚焦 / 勾选时浮现</td><td>常驻文件名条会把「图片墙」降格成「卡片列表」；浮层脱离文档流，长名展开也不会扰动排布</td></tr>
+      </table>
+      <ul class="spec-list">
+        <li><b>坑 ⑨：多列布局的 <code>margin</code> 会被卡片自身规则吃掉</b>。<code>.preview-grid &gt; *</code> 与 <code>.pv-card</code> 特异性同为 <code>(0,1,0)</code>，而 <code>.pv-card{margin:0}</code> 写在后面 → 纵向间距算出来是 <b>0</b>，整面墙紧贴成一条。必须用 <code>.preview-grid &gt; .pv-card</code>（<code>(0,2,0)</code>）压过它</li>
+        <li><b>取舍：填充顺序是「列优先」</b>。多列布局先填满第 1 列再填第 2 列，所以拖入 12 张时 01–04 在第一列，不是横着排一行。瀑布流本身没有「行」的概念，视觉上可以接受；若业务坚持行优先，需改成 JS 最短列分配（代价是多一套 resize 重排逻辑）</li>
+        <li><b>为什么不用 <code>grid</code></b>：grid 每行高度由该行最高的一张决定，矮图下方会留下大片空白；要么留空、要么把图裁成统一比例。图片墙首要目的是「扫一眼看清有哪些图」，保留原构图比行列整齐更重要</li>
+      </ul>
+
       <h3>真实图片渲染（照片墙的两种填充方式）</h3>
-      <p class="hint" style="margin:0 0 12px">照片墙的<b>演示态</b>（点扫描区带出）与<b>真实态</b>（拖入真实图片）共用同一套 DOM 骨架，只是填充方式不同——保证两种状态的网格几何完全一致，视觉验收时不会出现两套间距。</p>
+      <p class="hint" style="margin:0 0 12px">照片墙的<b>演示态</b>（点扫描区带出）与<b>真实态</b>（拖入真实图片）共用同一套 DOM 骨架，只是填充方式不同——保证两种状态的瀑布流几何（列宽、间距、圆角、浮层位置）完全一致，视觉验收时不会出现两套间距。</p>
       <table>
         <tr><th>路径</th><th>触发</th><th>卡片内容</th><th>何时用</th></tr>
         <tr><td><b>演示态</b></td><td>点扫描区 / 按 <code>Enter</code> / <code>空格</code></td><td>12 张 <code>.t1–.t4</code> 渐变占位卡</td><td>空手演示、视觉走查</td></tr>
@@ -1172,10 +1214,11 @@ document.addEventListener("keydown", e => { if(e.key==="Esc") pbFocus(); });</pr
         <li><b>筛选规则</b>：非 <code>image/*</code> MIME 跳过；<code>size &gt; 10 MB</code> 跳过。有跳过项时只弹<b>一条</b>汇总 toast（「已跳过 N 个文件（非图片或超过 10 MB）」），不为每个文件单独弹提示</li>
         <li><b>坑 ⑤：Object URL 必须先 <code>revoke</code> 再清空 DOM</b>。反过来会让已挂载的 <code>&lt;img&gt;</code> 在解码中途失去资源，出现「图片闪一下变空白」。顺序：<code>releaseURLs()</code> → <code>grid.innerHTML=""</code></li>
         <li><b>坑 ⑥：演示墙快照要在真实渲染之前取</b>。<code>DEMO_GRID_HTML = grid.innerHTML</code> 若在拖入之后才执行，快照里会混进已回收到期的 <code>blob:</code> URL，点「重置」后整片空白</li>
-        <li><b>坑 ⑦：卡片比例用钳制而非 <code>max-height</code></b>。<code>.ph</code> 宽由列宽决定、高由 <code>aspect-ratio</code> 决定，加 <code>max-height</code> 只裁高不改宽，<code>object-fit:cover</code> 会把图裁成一条窄缝。应在 <code>img.onload</code> 里把 <code>--ar</code> 夹到 <code>[0.75, 1.78]</code></li>
+        <li><b>坑 ⑦：卡片比例只设「极端护栏」，不做统一钳制</b>。上一版为了塞进等高等宽网格，把 <code>--ar</code> 强行夹到 <code>[0.75, 1.78]</code>——那是在<b>主动裁掉构图</b>。改为瀑布流后没有等高约束，高度直接取图片真实比例，旧钳制必须撤掉，否则 2:1 的宽图、1:2 的竖图仍会被莫名裁一刀。只保留一个护栏 <code>[0.4, 3.0]</code> 拦长网页截图与超宽全景（<code>0.4</code> ≈ 手机全面屏截图 9:19.5 的下限，<code>3.0</code> = 3:1 全景，常规照片完全不受影响）</li>
         <li><b>坑 ⑧：<code>.loaded</code> 类不能省</b>。<code>&lt;img&gt;</code> 解码是异步的，不隐藏 <code>.ph &gt; span</code> 序号水印，会出现「序号与真实图片同屏」的穿帮。序号水印只在演示态可见</li>
       </ul>
-<pre>const AR_MIN = 0.75, AR_MAX = 1.78;      // ≈ 4:3 竖版 ~ 16:9 横版
+<pre>/* 极端护栏：只拦长截图 / 超宽全景，常规照片原样呈现 */
+const AR_GUARD_MIN = 0.4, AR_GUARD_MAX = 3.0;
 let objectURLs = [];
 
 function buildCards(files){
@@ -1189,7 +1232,8 @@ function buildCards(files){
     /* … 建 figure.pv-card.real &gt; .ph &gt; img + .cap + .check … */
     img.addEventListener("load", () => {
       const raw = img.naturalWidth / img.naturalHeight;
-      const ar  = Math.min(AR_MAX, Math.max(AR_MIN, raw));   // 夹到区间
+      // 瀑布流：卡片高度就是这张图的高度，原比例直接落盘
+      const ar  = Math.min(AR_GUARD_MAX, Math.max(AR_GUARD_MIN, raw));
       fig.style.setProperty("--ar", ar.toFixed(3));
       fig.classList.add("loaded");                // 隐藏序号水印
     });
@@ -1202,7 +1246,9 @@ function releaseURLs(){
   objectURLs = [];                       // ④ 清空记账，避免重复 revoke
 }</pre>
       <ul class="spec-list">
-        <li><b>已实测验证</b>：拖入 3 张不同比例 PNG → 3 张 <code>.real</code> 卡全部 <code>loaded</code>、<code>blob:</code> URL、文件名正确；宽图 AR 1.78（盒高 100）、竖图 AR 0.75（盒高 238）、方图 AR 1.00（盒高 178）；同行卡宽一致 178px 未被竖图拉窄；非图片文件被过滤；结果栏计数 = 3</li>
+        <li><b>已实测验证</b>：拖入 12 张不同比例图片 → 4 列瀑布流、卡片高度参差且每张的高度严格等于「列宽 ÷ 原比例」（比例未被裁剪）；宽图 AR 2.0（盒高 125）、竖图 AR 0.5（盒高 500）、方图 AR 1.0（盒高 250）全部按原比例落位；1:8 长截图被护栏截到 0.4；非图片文件被过滤；结果栏计数 = 12</li>
+        <li><b>已实测验证（浮层）</b>：默认 <code>opacity:0</code>（图片全幅出血）；悬停与勾选时浮现白字文件名；卡片高度 = 图片高度（浮层不占位，实测差 0）</li>
+        <li><b>已实测验证（几何）</b>：列数去重 = 4、列宽唯一；同列纵向间距统一 = column-gap；无卡片被跨列切断；无横向溢出</li>
       </ul>
 
       <h2>🧩 Figma 组件拆分建议</h2>
@@ -1308,7 +1354,7 @@ let upTimer=null;
    抽成常量后二者不可能再不一致。 */
 const DZ_TITLE=dz.querySelector("h2").textContent;
 const DZ_BUSY="🔎 正在扫描图片…";
-// 图区网格引用提前到此处声明：拖放回调（下方）需要读卡片数量写 Toast 文案，
+// 图区容器引用提前到此处声明：拖放回调（下方）需要读卡片数量写 Toast 文案，
 // 而回调虽在延迟后才执行，变量声明仍须先于任何可能的执行路径，避免 TDZ。
 const grid=document.getElementById("previewGrid");
 /* 演示占位墙的 HTML 在启动时快照一次。
@@ -1346,12 +1392,14 @@ function startScan(files){
    ① 只接受 image/*，逐个过体积上限
    ② objectURL 是本页预览的关键（不必先上传到服务器）
    ③ 替换前回收旧 URL，否则每次拖入都泄漏一批 blob
-   ④ 图片的宽高比等它就位后回填到 --ar，避免格子先按 1:1 再跳一下 */
+   ④ 图片的宽高比等它就位后回填到 --ar —— 瀑布流靠这个比例决定卡片高度，
+      所以这里是"回填真实比例"，而不是像等高等宽网格那样"把比例夹到统一区间" */
 let objectURLs=[];
 const MAX_BYTES=10*1024*1024;           // 与扫描区提示文案「单张 ≤ 10 MB」保持一致
-/* 宽高比夹取范围：竖幅图不高于 3:4，横幅图不宽于 16:9。
-   理由见样式表 .pv-card.real 处的说明 —— 极端比例会把网格拉垮。 */
-const AR_MIN=0.75, AR_MAX=1.78;
+/* 极端比例护栏：只拦长网页截图 / 超宽全景这类病态比例，常规照片（1:3~3:1）原样呈现。
+   与上一版 [0.75, 1.78] 的区别：那是为了塞进等高等宽网格而主动裁掉构图，现在没有这个约束了。
+   取值依据：0.4 ≈ 手机全面屏截图（9:19.5≈0.46）的下限，3.0 = 3:1 全景。 */
+const AR_GUARD_MIN=0.4, AR_GUARD_MAX=3;
 function buildCards(files){
   releaseURLs();
   grid.innerHTML="";
@@ -1373,9 +1421,9 @@ function buildCards(files){
     const img=fig.querySelector("img");
     img.addEventListener("load",()=>{
       if(img.naturalWidth&&img.naturalHeight){
-        // 夹到 [AR_MIN, AR_MAX]：极端竖/横构图会把网格拉得参差不齐
+        // 按原始比例排布：瀑布流的卡片高度就是这张图的高度
         const raw=img.naturalWidth/img.naturalHeight;
-        const ar=Math.min(AR_MAX,Math.max(AR_MIN,raw));
+        const ar=Math.min(AR_GUARD_MAX,Math.max(AR_GUARD_MIN,raw));
         fig.style.setProperty("--ar",ar.toFixed(3));
       }
       fig.classList.add("loaded");      // 隐藏序号水印
