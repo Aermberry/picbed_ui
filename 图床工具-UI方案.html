@@ -248,19 +248,6 @@ body{
 .nav-item:hover .nav-tip,.nav-item:focus-visible .nav-tip{
   opacity:1; transform:translateY(-50%) translateX(0);
 }
-/* 计数角标：贴在图标右上角，与悬停浮层同为「不占常驻宽度」的信息承载方式。
-   无扫描结果时由 JS 摘掉 .has-badge，角标隐藏而不是显示 0。 */
-.nav-badge{
-  position:absolute; top:2px; right:2px;
-  min-width:16px; height:16px; padding:0 4px;
-  display:none; align-items:center; justify-content:center;
-  background:var(--c-primary); color:#fff;
-  font-size:10px; font-weight:600; line-height:1;
-  border-radius:var(--r-full);
-  box-shadow:0 0 0 2px var(--c-surface);   /* 与侧栏同色描边，从图标上"浮"起来 */
-  pointer-events:none;
-}
-.nav-item.has-badge .nav-badge{display:flex}
 /* 侧栏底部头像与 Logo 同窄：44px 栏宽下用 34px 圆 */
 .avatar{
   width:34px;height:34px;border-radius:var(--r-full);
@@ -650,10 +637,6 @@ code{
     </div>
     <button class="nav-item active" data-view="upload" aria-label="上传">
       <svg class="ico"><use href="#i-upload"/></svg><span class="nav-tip">上传</span></button>
-    <button class="nav-item" data-view="preview" aria-label="扫描结果">
-      <svg class="ico"><use href="#i-image"/></svg><span class="nav-tip">扫描结果</span>
-      <!-- 角标：显示已扫描到的图片数。无结果时隐藏（JS 控制 .has-badge） -->
-      <span class="nav-badge" id="navBadge">12</span></button>
     <button class="nav-item" data-view="manage" aria-label="管理">
       <svg class="ico"><use href="#i-folder"/></svg><span class="nav-tip">管理</span></button>
     <button class="nav-item" data-view="settings" aria-label="设置">
@@ -1160,16 +1143,17 @@ gridWrap.addEventListener("scroll", () => pbDimNow(1200), {passive:true});  // �
 pbBar.addEventListener("mouseenter", pbFocus);
 document.addEventListener("keydown", e => { if(e.key==="Esc") pbFocus(); });</pre>
       <ul class="spec-list">
-        <li><b>侧栏收窄</b>：72px → <b>56px</b>，导航文字改为悬停滑出的浮层提示（<code>.nav-tip</code>），不占常驻宽度。图区因此多出 16px，功能入口一个不少</li>
+        <li><b>侧栏收窄</b>：72px → <b>56px</b>，导航文字改为悬停滑出的浮层提示（<code>.nav-tip</code>），不占常驻宽度。图区因此多出 16px</li>
+        <li><b>侧栏只放四个常驻页</b>：上传 / 管理 / 设置 / 规范。「扫描结果」不进侧栏——它不是常驻页面，而是上传流程的中间态，由拖图或点扫描区带出（早期版本曾给它一个带计数角标的侧栏项，属冗余入口，已移除）</li>
         <li><b>交付替换点</b>：原型中 <code>.ph</code> 是双色渐变占位块（真实位图无法响应 <code>data-theme</code>）。接入真实图片时把 <code>.ph</code> 换成 <code>&lt;img&gt;</code> 即可，卡片骨架、网格布局、勾选态全部无需改动</li>
         <li><b>已实测验证</b>：60 张卡片、可滚 2231px 的场景下，滚动 1116px 后工具栏 y 坐标恒为 56；滚动中 <code>dim</code> 生效且可穿透；三主题下占位色各不相同</li>
       </ul>
 
       <h3>真实图片渲染（照片墙的两种填充方式）</h3>
-      <p class="hint" style="margin:0 0 12px">照片墙的<b>演示态</b>（点扫描区 / 侧栏进入）与<b>真实态</b>（拖入真实图片）共用同一套 DOM 骨架，只是填充方式不同——保证两种状态的网格几何完全一致，视觉验收时不会出现两套间距。</p>
+      <p class="hint" style="margin:0 0 12px">照片墙的<b>演示态</b>（点扫描区带出）与<b>真实态</b>（拖入真实图片）共用同一套 DOM 骨架，只是填充方式不同——保证两种状态的网格几何完全一致，视觉验收时不会出现两套间距。</p>
       <table>
         <tr><th>路径</th><th>触发</th><th>卡片内容</th><th>何时用</th></tr>
-        <tr><td><b>演示态</b></td><td>点扫描区 / 侧栏「扫描结果」</td><td>12 张 <code>.t1–.t4</code> 渐变占位卡</td><td>空手演示、视觉走查</td></tr>
+        <tr><td><b>演示态</b></td><td>点扫描区 / 按 <code>Enter</code> / <code>空格</code></td><td>12 张 <code>.t1–.t4</code> 渐变占位卡</td><td>空手演示、视觉走查</td></tr>
         <tr><td><b>真实态</b></td><td><b>拖放真实图片文件</b>进扫描区</td><td><code>.pv-card.real</code> + <code>&lt;img src="blob:…"&gt;</code></td><td>真实工作流</td></tr>
       </table>
       <ul class="spec-list">
@@ -1206,13 +1190,12 @@ function releaseURLs(){
   objectURLs = [];                       // ④ 清空记账，避免重复 revoke
 }</pre>
       <ul class="spec-list">
-        <li><b>已实测验证</b>：拖入 3 张不同比例 PNG → 3 张 <code>.real</code> 卡全部 <code>loaded</code>、<code>blob:</code> URL、文件名正确；宽图 AR 1.78（盒高 100）、竖图 AR 0.75（盒高 238）、方图 AR 1.00（盒高 178）；同行卡宽一致 178px 未被竖图拉窄；非图片文件被过滤；角标 = 3</li>
+        <li><b>已实测验证</b>：拖入 3 张不同比例 PNG → 3 张 <code>.real</code> 卡全部 <code>loaded</code>、<code>blob:</code> URL、文件名正确；宽图 AR 1.78（盒高 100）、竖图 AR 0.75（盒高 238）、方图 AR 1.00（盒高 178）；同行卡宽一致 178px 未被竖图拉窄；非图片文件被过滤；结果栏计数 = 3</li>
       </ul>
 
       <h2>🧩 Figma 组件拆分建议</h2>
       <ul class="spec-list">
         <li><b>NavItem</b>（icon+label，Variant: default / hover / active）</li>
-        <li><b>NavBadge</b>（计数角标，Variant: hidden / count；16×16 胶囊 + 2px 侧栏同色描边，从图标上"浮"起）</li>
         <li><b>DropZone</b>（Variant: idle / hover / dragging / error）</li>
         <li><b>FileCard</b>（缩略图 + 文件名 + 大小 + 状态 Tag，可做 Auto Layout 网格）</li>
         <li><b>StatCard</b>（标签 + 数值）、<b>Toggle</b>、<b>SearchInput</b>、<b>Button</b>(primary/ghost)</li>
@@ -1222,15 +1205,15 @@ function releaseURLs(){
       <table>
         <tr><th>方式</th><th>操作</th><th>看到什么</th></tr>
         <tr><td><b>拖真实图片</b>（最推荐）</td><td>把本机任意图片拖进虚线框（可多选）</td><td>照片墙显示的就是<b>你拖进去的那几张图</b>，文件名真实、比例真实；非图片或超 10 MB 的文件会被自动跳过并汇总提示</td></tr>
-        <tr><td>直接看结果页</td><td>点侧栏第 2 个图标（<b>扫描结果</b>，带数字角标）</td><td>演示用的 12 张占位卡 + 重置/上传工具栏，无需先拖文件</td></tr>
-        <tr><td><b>点扫描区</b></td><td>在「上传」页<b>点一下虚线框</b>任意位置；里面的「选择文件」按钮、按 <code>Enter</code> / <code>空格</code> 同样有效</td><td>Logo 转上传态 → 约 0.7s 后自动跳到照片墙（演示态），侧栏高亮同步、角标出现、滚动归零</td></tr>
+        <tr><td><b>点扫描区</b>（最轻）</td><td>在「上传」页<b>点一下虚线框</b>任意位置；里面的「选择文件」按钮、按 <code>Enter</code> / <code>空格</code> 同样有效</td><td>Logo 转上传态 → 约 0.7s 后自动跳到照片墙（演示态），侧栏高亮仍停在「上传」、滚动归零</td></tr>
         <tr><td>看滚动行为</td><td>结果页里上下滚轮或拖动滚动条</td><td>工具栏<b>纹丝不动</b>，仅淡到 38% 让位；停手自动恢复，鼠标移到工具栏上或按 <code>Esc</code> 立即召回</td></tr>
         <tr><td>看勾选与上传</td><td>点任意图片勾选（可多选）→ 点「上传」</td><td>结果栏文案变"已选择 N / 12"、进度条出现、按钮转禁用态"上传中…"，完成后自动清空勾选</td></tr>
         <tr><td>看主题联动</td><td>顶栏切「A 群青夕橙」「B 樱粉若叶」</td><td>占位色板、按钮、Logo 底版整体换色，卡片骨架不变（真实图片本身不参与换色）</td></tr>
       </table>
       <h2>🔗 原型连线（Prototype）</h2>
       <ul class="spec-list">
-        <li>NavItem.onTap → 切换对应 Frame（Smart Animate · 200ms · Ease-out）；「扫描结果」带计数角标</li>
+        <li>NavItem.onTap → 切换对应 Frame（Smart Animate · 200ms · Ease-out）。侧栏为<b>四个常驻页</b>：上传 / 管理 / 设置 / 规范</li>
+        <li><b>NavItem 高亮归属</b>：「扫描结果」是流程态、无侧栏项，进入时高亮<b>归属「上传」</b>（见 <code>NAV_OWNER</code>），不出现整栏无高亮的空白态</li>
         <li>DropZone.onDragOver → 切到 dragging Variant；<b>onDrop（带真实文件）</b> → 走 <code>buildCards(files)</code> 渲染真实图片 + Toast「已读取 N 张图片，勾选后上传」</li>
         <li>DropZone.onClick → 走 <code>startScan()</code>（无文件）→ 演示照片墙 + Toast「已扫描到 N 张图片」</li>
         <li>PreviewBar「重置」→ 真实态回收 object URL 并还原演示墙；演示态仅清勾选</li>
@@ -1250,9 +1233,7 @@ const titles={
   settings:["设置","图床配置与上传偏好"],
   doc:["设计规范","令牌 · 组件 · 原型连线"]
 };
-/* 导航点击：切视图 + 同步高亮。
-   注意 showView 也被拖放流程以编程方式调用，那时不能改动导航高亮
-   （用户还在「上传」页，只是被自动带进了结果页），所以高亮只在此处维护。 */
+/* 导航点击：切视图 + 同步高亮。 */
 document.querySelectorAll(".nav-item").forEach(btn=>{
   btn.addEventListener("click",()=>{
     document.querySelectorAll(".nav-item").forEach(b=>b.classList.remove("active"));
@@ -1260,6 +1241,11 @@ document.querySelectorAll(".nav-item").forEach(btn=>{
     showView(btn.dataset.view);
   });
 });
+/* 预览态的侧栏高亮归属。
+   预览态（扫描结果）没有自己的侧栏项——它不是一个常驻页面，而是「上传」流程的
+   中间步骤，只能由拖图或点扫描区带出。所以高亮归属给 upload：
+   既不会出现"整栏无高亮"的空白态，也不会让用户以为另有一个独立页面。 */
+const NAV_OWNER={preview:"upload"};
 /* 显示指定视图。
    预览态由「结果栏 + 图区」两个兄弟节点共同构成，它们都不是 .content，
    所以必须单独处理（分层原因见 §1.1 滚动架构）。
@@ -1280,17 +1266,12 @@ function showView(v, opt){
   document.getElementById("pageTitle").textContent=info[0];
   document.getElementById("pageCrumb").textContent=info[1];
   if(opt&&opt.syncNav){
+    // 预览态归属给 upload（见 NAV_OWNER），侧栏不出现无高亮的空白态
+    const owner=NAV_OWNER[v]||v;
     document.querySelectorAll(".nav-item").forEach(b=>{
-      b.classList.toggle("active", b.dataset.view===v);
+      b.classList.toggle("active", b.dataset.view===owner);
     });
   }
-}
-/* 导航角标：显示已扫描到的图片数，无结果时隐藏 */
-function setNavBadge(n){
-  const badge=document.getElementById("navBadge");
-  const item=badge.closest(".nav-item");
-  if(n>0){ badge.textContent=n; item.classList.add("has-badge"); }
-  else   { item.classList.remove("has-badge"); }
 }
 
 let toastTimer=null;
@@ -1315,7 +1296,7 @@ let upTimer=null;
    抽成常量后二者不可能再不一致。 */
 const DZ_TITLE=dz.querySelector("h2").textContent;
 const DZ_BUSY="🔎 正在扫描图片…";
-// 图区网格引用提前到此处声明：拖放回调（下方）需要读卡片数量刷角标，
+// 图区网格引用提前到此处声明：拖放回调（下方）需要读卡片数量写 Toast 文案，
 // 而回调虽在延迟后才执行，变量声明仍须先于任何可能的执行路径，避免 TDZ。
 const grid=document.getElementById("previewGrid");
 /* 演示占位墙的 HTML 在启动时快照一次。
@@ -1342,10 +1323,9 @@ function startScan(files){
     dz.querySelector("h2").textContent=DZ_TITLE;
     if(list) buildCards(list);                       // 真实文件 → 重建照片墙
     const n=grid.querySelectorAll(".pv-card").length;
-    // 落到「扫描结果」并同步导航高亮 —— 用户此刻确实"在"这个视图，
-    // 若只切内容不改高亮，导航会仍指着「上传」，状态就自相矛盾了。
+    // 落到「扫描结果」并同步导航高亮。预览态没有自己的侧栏项，syncNav 会把它
+    // 归属给「上传」（见 NAV_OWNER）——用户此刻确实还在上传流程里，高亮不该丢。
     showView("preview",{syncNav:true});
-    setNavBadge(n);                                  // 角标显示实际扫描数
     showToast((list?"已读取 ":"已扫描到 ")+n+" 张图片，勾选后上传");
   },700);
 }
@@ -1459,7 +1439,7 @@ document.getElementById("btnReset").addEventListener("click",()=>{
   if(hasReal){
     releaseURLs();
     grid.innerHTML=DEMO_GRID_HTML;    // 还原演示占位墙
-    selCount=0; syncPreviewBar(); setNavBadge(grid.querySelectorAll(".pv-card").length);
+    selCount=0; syncPreviewBar();
     showToast("已清空扫描结果，回到演示视图");
     return;
   }
