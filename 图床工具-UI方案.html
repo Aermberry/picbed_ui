@@ -291,6 +291,13 @@ body{
 .dropzone:hover,.dropzone.drag{
   border-color:var(--c-primary); background:var(--c-primary-soft);
 }
+/* 键盘聚焦反馈：dropzone 可聚焦（tabindex=0），若无此规则则 Tab 过来时看不出焦点位置。
+   用 outline 而非 border —— border 变化会改变盒子尺寸导致抖动。 */
+.dropzone:focus-visible{
+  outline:3px solid var(--c-primary-soft);
+  outline-offset:2px;
+  border-color:var(--c-primary);
+}
 .dropzone .big-ico{
   width:88px;height:88px;border-radius:var(--r-full);
   background:var(--c-primary-soft); display:flex;align-items:center;justify-content:center;
@@ -739,10 +746,13 @@ code{
 
     <!-- 视图一：文件放置 -->
     <section class="content" id="view-upload">
-      <div class="dropzone" id="dropzone">
+      <!-- 扫描区本身可点：role/tabindex 让它能被键盘聚焦并触发（见 .dropzone 的 keydown）。
+           aria-label 说明「点击」与「拖放」两种入口，屏读用户才知道这里能点。 -->
+      <div class="dropzone" id="dropzone" role="button" tabindex="0"
+           aria-label="扫描区：点击或拖放图片文件，扫描后可查看图片墙预览">
         <div class="big-ico"><svg><use href="#i-image"/></svg></div>
-        <h2>将文件拖放到此处</h2>
-        <p>或点击选择文件上传 · 支持 JPG / PNG / GIF / WebP · 单张 ≤ 10 MB</p>
+        <h2>拖放图片，或点击此处查看扫描结果</h2>
+        <p>支持 JPG / PNG / GIF / WebP · 单张 ≤ 10 MB · 点击后进入图片墙预览</p>
         <div style="display:flex;gap:12px">
           <button class="btn btn-primary">选择文件</button>
           <button class="btn btn-ghost">粘贴剪贴板</button>
@@ -1149,7 +1159,8 @@ document.addEventListener("keydown", e => { if(e.key==="Esc") pbFocus(); });</pr
       <table>
         <tr><th>方式</th><th>操作</th><th>看到什么</th></tr>
         <tr><td>直接看结果页</td><td>点侧栏第 2 个图标（<b>扫描结果</b>，带数字角标）</td><td>完整的图片网格 + 重置/上传工具栏，无需先拖文件</td></tr>
-        <tr><td>走完整流程</td><td>在「上传」页拖任意文件进拖放区（或点"选择文件"）</td><td>Logo 转扫描态 → 约 1.4s 后自动跳到结果页，侧栏高亮同步、角标出现、滚动归零</td></tr>
+        <tr><td><b>点扫描区</b>（推荐）</td><td>在「上传」页<b>点一下虚线框</b>任意位置；里面的「选择文件」按钮、按 <code>Enter</code> / <code>空格</code> 同样有效</td><td>Logo 转上传态 → 约 1.4s 后自动跳到照片墙，侧栏高亮同步、角标出现、滚动归零</td></tr>
+        <tr><td>拖放文件</td><td>拖任意图片进虚线框</td><td>同上——拖放与点击走的是<b>同一条</b> <code>startScan()</code> 路径，行为完全一致</td></tr>
         <tr><td>看滚动行为</td><td>结果页里上下滚轮或拖动滚动条</td><td>工具栏<b>纹丝不动</b>，仅淡到 38% 让位；停手自动恢复，鼠标移到工具栏上或按 <code>Esc</code> 立即召回</td></tr>
         <tr><td>看勾选与上传</td><td>点任意图片勾选（可多选）→ 点「上传」</td><td>结果栏文案变"已选择 N / 12"、进度条出现、按钮转禁用态"上传中…"，完成后自动清空勾选</td></tr>
         <tr><td>看主题联动</td><td>顶栏切「A 群青夕橙」「B 樱粉若叶」</td><td>占位色板、按钮、Logo 底版整体换色，卡片骨架不变</td></tr>
@@ -1234,6 +1245,11 @@ document.querySelectorAll(".btn-primary").forEach(b=>{
 const dz=document.getElementById("dropzone");
 const logo=document.getElementById("logo");
 let upTimer=null;
+/* 扫描区的静止标题：HTML 里的初始文案与 JS 恢复文案必须是同一个来源。
+   此前两处各自写死字符串，改了 HTML 忘了 JS，于是扫描结束后标题会"变回"旧文案。
+   抽成常量后二者不可能再不一致。 */
+const DZ_TITLE=dz.querySelector("h2").textContent;
+const DZ_BUSY="🔎 正在扫描图片…";
 // 图区网格引用提前到此处声明：拖放回调（下方）需要读卡片数量刷角标，
 // 而回调虽在 1400ms 后才执行，变量声明仍须先于任何可能的执行路径，避免 TDZ。
 const grid=document.getElementById("previewGrid");
@@ -1241,22 +1257,49 @@ function logoState(s){
   logo.classList.remove("scanning","uploading");
   if(s) logo.classList.add(s);
 }
-dz.addEventListener("dragover",e=>{e.preventDefault();dz.classList.add("drag");logoState("scanning");
-  dz.querySelector("h2").textContent="🔎 正在扫描文件…";});
-dz.addEventListener("dragleave",()=>{dz.classList.remove("drag");
-  if(!upTimer){logoState(null);dz.querySelector("h2").textContent="将文件拖放到此处";}});
-dz.addEventListener("drop",e=>{e.preventDefault();dz.classList.remove("drag");
+/* 「扫描 → 出结果」的唯一入口。
+   拖放、点击扫描区、点击「选择文件 / 粘贴剪贴板」三个入口全部走这里，
+   避免多条路径各自 PRESENT 一套同样的动画与跳转逻辑、日后改一处漏一处。
+
+   注意：真实的 file 读取不在本原型范围内（这是 UI 方案稿，不是实现），
+   这里只演示「交互时序」，用时延模拟扫描过程。接入真实逻辑时，
+   把 setTimeout 换成 scanFiles(files) 的 Promise 即可，其余不用动。 */
+function startScan(){
+  if(upTimer) return;                  // 扫描进行中忽略重复触发
   logoState("uploading");
-  dz.querySelector("h2").textContent="⬆ 正在上传图片…";
+  dz.querySelector("h2").textContent=DZ_BUSY;
   clearTimeout(upTimer);
   upTimer=setTimeout(()=>{logoState(null);upTimer=null;
-    dz.querySelector("h2").textContent="将文件拖放到此处";
-    // 拖入后自动落到「扫描结果」并同步导航高亮 —— 用户此刻确实"在"这个视图，
+    dz.querySelector("h2").textContent=DZ_TITLE;
+    // 落到「扫描结果」并同步导航高亮 —— 用户此刻确实"在"这个视图，
     // 若只切内容不改高亮，导航会仍指着「上传」，状态就自相矛盾了。
+    const n=grid.querySelectorAll(".pv-card").length;
     showView("preview",{syncNav:true});
-    setNavBadge(grid.querySelectorAll(".pv-card").length);   // 角标显示实际扫描数
-    showToast("已扫描到 "+grid.querySelectorAll(".pv-card").length+" 张图片，勾选后上传");
-  },1400);});
+    setNavBadge(n);                    // 角标显示实际扫描数
+    showToast("已扫描到 "+n+" 张图片，勾选后上传");
+  },1400);
+}
+dz.addEventListener("dragover",e=>{e.preventDefault();dz.classList.add("drag");logoState("scanning");
+  dz.querySelector("h2").textContent=DZ_BUSY;});
+dz.addEventListener("dragleave",()=>{dz.classList.remove("drag");
+  if(!upTimer){logoState(null);dz.querySelector("h2").textContent=DZ_TITLE;}});
+dz.addEventListener("drop",e=>{e.preventDefault();dz.classList.remove("drag");startScan();});
+
+// ── 点击扫描区即可跳转（无需拖文件）──
+// 整个 .dropzone 可点：内部按钮的 click 会冒泡到这里，因此不必逐个按钮绑定。
+// 用 e.target.closest("button") 只做「读取」，不改变行为 —— 无论点按钮还是空白处，
+// 演示效果都相同，都走 startScan()。真实实现里这里应当打开系统文件选择器。
+dz.addEventListener("click",e=>{
+  const btn=e.target.closest("button");
+  if(btn) e.preventDefault();          // 阻止按钮默认提交语义，避免无谓的表单行为
+  startScan();
+});
+// 键盘可达：扫描区可聚焦，Enter / 空格 等同点击
+dz.addEventListener("keydown",e=>{
+  if(e.key!=="Enter"&&e.key!==" ") return;
+  e.preventDefault();                  // 空格否则会滚动页面
+  startScan();
+});
 
 // ═══ 扫描结果：卡片勾选 / 重置 / 上传 ═══
 const pbLabel=document.querySelector("#view-preview .pb-label");
