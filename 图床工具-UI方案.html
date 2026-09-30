@@ -248,11 +248,19 @@ body{
 .nav-item:hover .nav-tip,.nav-item:focus-visible .nav-tip{
   opacity:1; transform:translateY(-50%) translateX(0);
 }
-/* 侧栏底部头像与 Logo 同窄：44px 栏宽下用 34px 圆 */
+/* 侧栏底部用户头像：56px 栏宽内居中放 34px 圆，内容为产品名首字母「P」（picbed）。
+   首字母头像是账号体系未接入时的通行占位做法：配色直接取主题令牌，无需额外素材资产，
+   且与顶部品牌 Logo 的图形语言天然区分——顶部是「图形」、底部是「字」，
+   两者即使同色同圆也不会被误认成同一个标志。
+   字母内容写在 DOM 里而非 CSS content，业务接入后替换成 <img> 时不会留残留伪元素。 */
 .avatar{
   width:34px;height:34px;border-radius:var(--r-full);
-  background:var(--c-primary-soft);color:var(--c-primary);
-  display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;
+  background:var(--c-primary-soft); color:var(--c-primary);
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px; font-weight:600; line-height:1;
+  user-select:none;  /* 头像不是文本内容，拖选时不应出现选区高亮 */
+  flex-shrink:0;     /* 侧栏是 flex column，窗口变矮时不压缩圆 */
+  margin-top:auto;   /* 贴到侧栏最下端，账户区与导航区自然分离 */
 }
 
 /* ========== 主区域 ========== */
@@ -643,8 +651,10 @@ code{
       <svg class="ico"><use href="#i-gear"/></svg><span class="nav-tip">设置</span></button>
     <button class="nav-item" data-view="doc" aria-label="规范">
       <svg class="ico"><use href="#i-book"/></svg><span class="nav-tip">规范</span></button>
-    <div class="spacer"></div>
-    <div class="avatar">A</div>
+    <!-- 用户头像（占位）：内容为产品名首字母「P」（picbed），接入账号体系后
+         整体换成 <img src="用户头像"> 即可，容器与尺寸不变。
+         靠 margin-top:auto 贴到侧栏底部，不依赖占位节点。 -->
+    <div class="avatar" title="picbed">P</div>
 
   </nav>
 
@@ -982,10 +992,12 @@ code{
         <div class="chip"><svg class="ico" style="width:30px;height:30px"><use href="#i-gear"/></svg>i-gear</div>
         <div class="chip"><svg class="ico" style="width:30px;height:30px"><use href="#i-search"/></svg>i-search</div>
         <div class="chip"><svg class="ico" style="width:30px;height:30px"><use href="#i-image"/></svg>i-image</div>
+        <div class="chip"><svg class="ico" style="width:30px;height:30px"><use href="#i-book"/></svg>i-book</div>
       </div>
       <ul class="spec-list">
         <li><b>风格</b>：粗描边双色（参考方案特征）—— 描边藏青 <code>#456B94</code>、线宽 2/24（≈8%）、转折处小圆角、笔画硬朗</li>
         <li><b>配色</b>：主体留白 + 浅天蓝 <code>#C9E3F6</code> 点缀；次级细节雾灰 <code>#C3D5EC</code>（动漫化：由中性灰 <code>#C9CDD4</code> 改为带蓝相，避免浊）；暖色仅做点睛（夕照金 <code>#FFC978</code>，如太阳）</li>
+        <li><b>彩底上的图标</b>：图标若落在浅色底（如 <code>--c-primary-soft</code>）上，填充改用<b>纯白</b>而非浅天蓝——同色系叠同色系会糊成一片，只有纯白能把剪影从底色里提出来。头像占位改用字母后不再走这条规则，但其它彩底场景照此处理</li>
         <li><b>网格</b>：24×24 出图；导航 22px、行内 16px、空状态主视觉 52px；Figma 中做成 Icon 组件 + 尺寸 Variant</li>
         <li><b>插画感</b>：空状态/引导位可给图标垫浅灰蓝圆底 <code>#E8EEF3</code>，复刻参考方案的背景云</li>
         <li><b>⚠️ 版权</b>：原方案为 iconfont 付费插画（整套 ¥49/商用），此处仅借鉴风格语言自绘，请勿直接使用原图商用</li>
