@@ -414,7 +414,26 @@ body[data-theme="cream"] .pv-card.t1 .ph{background:linear-gradient(135deg,#F8C9
 body[data-theme="cream"] .pv-card.t2 .ph{background:linear-gradient(135deg,#C2EBDC,#86D9B4)}
 body[data-theme="cream"] .pv-card.t3 .ph{background:linear-gradient(135deg,#FFE4EE,#F5B3CC)}
 body[data-theme="cream"] .pv-card.t4 .ph{background:linear-gradient(135deg,#D6EEF4,#A8D4DE)}
-/* 序号水印：在任意占位色上都能读，取代原方案的 emoji 图标 */
+/* —— 真实图片卡片（拖入文件时由 JS 生成）——
+   结构与占位卡片完全一致（figure.pv-card > .ph + .cap + .check），
+   只是 .ph 里放的是 <img> 而非渐变占位块。勾选态、hover、键盘聚焦因此无需重写：
+   <img> 铺满 .ph，object-fit:cover 保证不同比例都能填满且不拉伸变形。 */
+.pv-card.real .ph{background:var(--c-primary-mist)}
+.pv-card.real .ph img{
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:cover; display:block;
+}
+/* 有真实图时序号水印会挡画面，仅在图片尚未加载出来（或加载失败）时露出，
+   加载成功由 JS 给卡片挂 .loaded 后隐藏。 */
+.pv-card.real .ph span{z-index:1}
+.pv-card.real.loaded .ph span{display:none}
+/* 竖幅图限高：真实照片里竖构图（如 9:16）按原比例会撑到 300px+，
+   把网格拉得极长、一屏放不下几张。
+   做法是在 JS 回填比例时把 --ar 夹到下限（见 buildCards 的 AR_MIN），
+   而不是用 max-height —— 后者与 aspect-ratio 冲突：宽度不变时盒子会保持原宽，
+   图片被 cover 裁成瘦长条，反而更难看。夹比例则让"瘦高"变成"稍宽"，视觉更稳。
+   代价是竖图的上下会被裁掉一些，可接受：照片墙的首要是"扫一眼看清有哪些图"，
+   要看全图点开详情即可。 */
 .pv-card .ph span{
   font-size:22px; font-weight:600; color:#fff; opacity:.72;
   font-variant-numeric:tabular-nums; letter-spacing:.5px;
@@ -1146,6 +1165,50 @@ document.addEventListener("keydown", e => { if(e.key==="Esc") pbFocus(); });</pr
         <li><b>已实测验证</b>：60 张卡片、可滚 2231px 的场景下，滚动 1116px 后工具栏 y 坐标恒为 56；滚动中 <code>dim</code> 生效且可穿透；三主题下占位色各不相同</li>
       </ul>
 
+      <h3>真实图片渲染（照片墙的两种填充方式）</h3>
+      <p class="hint" style="margin:0 0 12px">照片墙的<b>演示态</b>（点扫描区 / 侧栏进入）与<b>真实态</b>（拖入真实图片）共用同一套 DOM 骨架，只是填充方式不同——保证两种状态的网格几何完全一致，视觉验收时不会出现两套间距。</p>
+      <table>
+        <tr><th>路径</th><th>触发</th><th>卡片内容</th><th>何时用</th></tr>
+        <tr><td><b>演示态</b></td><td>点扫描区 / 侧栏「扫描结果」</td><td>12 张 <code>.t1–.t4</code> 渐变占位卡</td><td>空手演示、视觉走查</td></tr>
+        <tr><td><b>真实态</b></td><td><b>拖放真实图片文件</b>进扫描区</td><td><code>.pv-card.real</code> + <code>&lt;img src="blob:…"&gt;</code></td><td>真实工作流</td></tr>
+      </table>
+      <ul class="spec-list">
+        <li><b>筛选规则</b>：非 <code>image/*</code> MIME 跳过；<code>size &gt; 10 MB</code> 跳过。有跳过项时只弹<b>一条</b>汇总 toast（「已跳过 N 个文件（非图片或超过 10 MB）」），不为每个文件单独弹提示</li>
+        <li><b>坑 ⑤：Object URL 必须先 <code>revoke</code> 再清空 DOM</b>。反过来会让已挂载的 <code>&lt;img&gt;</code> 在解码中途失去资源，出现「图片闪一下变空白」。顺序：<code>releaseURLs()</code> → <code>grid.innerHTML=""</code></li>
+        <li><b>坑 ⑥：演示墙快照要在真实渲染之前取</b>。<code>DEMO_GRID_HTML = grid.innerHTML</code> 若在拖入之后才执行，快照里会混进已回收到期的 <code>blob:</code> URL，点「重置」后整片空白</li>
+        <li><b>坑 ⑦：卡片比例用钳制而非 <code>max-height</code></b>。<code>.ph</code> 宽由列宽决定、高由 <code>aspect-ratio</code> 决定，加 <code>max-height</code> 只裁高不改宽，<code>object-fit:cover</code> 会把图裁成一条窄缝。应在 <code>img.onload</code> 里把 <code>--ar</code> 夹到 <code>[0.75, 1.78]</code></li>
+        <li><b>坑 ⑧：<code>.loaded</code> 类不能省</b>。<code>&lt;img&gt;</code> 解码是异步的，不隐藏 <code>.ph &gt; span</code> 序号水印，会出现「序号与真实图片同屏」的穿帮。序号水印只在演示态可见</li>
+      </ul>
+<pre>const AR_MIN = 0.75, AR_MAX = 1.78;      // ≈ 4:3 竖版 ~ 16:9 横版
+let objectURLs = [];
+
+function buildCards(files){
+  releaseURLs();                         // ① 先回收上一批
+  grid.innerHTML = "";                   // ② 再清空 DOM（顺序不能反）
+  files.forEach(f => {
+    if(!f.type.startsWith("image/")) return;      // 非图片跳过
+    if(f.size > 10 * 1024 * 1024) return;         // 超 10MB 跳过
+    const url = URL.createObjectURL(f);
+    objectURLs.push(url);                         // ③ 记账，供统一回收
+    /* … 建 figure.pv-card.real &gt; .ph &gt; img + .cap + .check … */
+    img.addEventListener("load", () => {
+      const raw = img.naturalWidth / img.naturalHeight;
+      const ar  = Math.min(AR_MAX, Math.max(AR_MIN, raw));   // 夹到区间
+      fig.style.setProperty("--ar", ar.toFixed(3));
+      fig.classList.add("loaded");                // 隐藏序号水印
+    });
+    img.src = url;
+  });
+}
+
+function releaseURLs(){
+  objectURLs.forEach(u => URL.revokeObjectURL(u));
+  objectURLs = [];                       // ④ 清空记账，避免重复 revoke
+}</pre>
+      <ul class="spec-list">
+        <li><b>已实测验证</b>：拖入 3 张不同比例 PNG → 3 张 <code>.real</code> 卡全部 <code>loaded</code>、<code>blob:</code> URL、文件名正确；宽图 AR 1.78（盒高 100）、竖图 AR 0.75（盒高 238）、方图 AR 1.00（盒高 178）；同行卡宽一致 178px 未被竖图拉窄；非图片文件被过滤；角标 = 3</li>
+      </ul>
+
       <h2>🧩 Figma 组件拆分建议</h2>
       <ul class="spec-list">
         <li><b>NavItem</b>（icon+label，Variant: default / hover / active）</li>
@@ -1158,17 +1221,19 @@ document.addEventListener("keydown", e => { if(e.key==="Esc") pbFocus(); });</pr
       <h2>🔍 怎么查看「扫描图片后」的界面变化</h2>
       <table>
         <tr><th>方式</th><th>操作</th><th>看到什么</th></tr>
-        <tr><td>直接看结果页</td><td>点侧栏第 2 个图标（<b>扫描结果</b>，带数字角标）</td><td>完整的图片网格 + 重置/上传工具栏，无需先拖文件</td></tr>
-        <tr><td><b>点扫描区</b>（推荐）</td><td>在「上传」页<b>点一下虚线框</b>任意位置；里面的「选择文件」按钮、按 <code>Enter</code> / <code>空格</code> 同样有效</td><td>Logo 转上传态 → 约 1.4s 后自动跳到照片墙，侧栏高亮同步、角标出现、滚动归零</td></tr>
-        <tr><td>拖放文件</td><td>拖任意图片进虚线框</td><td>同上——拖放与点击走的是<b>同一条</b> <code>startScan()</code> 路径，行为完全一致</td></tr>
+        <tr><td><b>拖真实图片</b>（最推荐）</td><td>把本机任意图片拖进虚线框（可多选）</td><td>照片墙显示的就是<b>你拖进去的那几张图</b>，文件名真实、比例真实；非图片或超 10 MB 的文件会被自动跳过并汇总提示</td></tr>
+        <tr><td>直接看结果页</td><td>点侧栏第 2 个图标（<b>扫描结果</b>，带数字角标）</td><td>演示用的 12 张占位卡 + 重置/上传工具栏，无需先拖文件</td></tr>
+        <tr><td><b>点扫描区</b></td><td>在「上传」页<b>点一下虚线框</b>任意位置；里面的「选择文件」按钮、按 <code>Enter</code> / <code>空格</code> 同样有效</td><td>Logo 转上传态 → 约 0.7s 后自动跳到照片墙（演示态），侧栏高亮同步、角标出现、滚动归零</td></tr>
         <tr><td>看滚动行为</td><td>结果页里上下滚轮或拖动滚动条</td><td>工具栏<b>纹丝不动</b>，仅淡到 38% 让位；停手自动恢复，鼠标移到工具栏上或按 <code>Esc</code> 立即召回</td></tr>
         <tr><td>看勾选与上传</td><td>点任意图片勾选（可多选）→ 点「上传」</td><td>结果栏文案变"已选择 N / 12"、进度条出现、按钮转禁用态"上传中…"，完成后自动清空勾选</td></tr>
-        <tr><td>看主题联动</td><td>顶栏切「A 群青夕橙」「B 樱粉若叶」</td><td>占位色板、按钮、Logo 底版整体换色，卡片骨架不变</td></tr>
+        <tr><td>看主题联动</td><td>顶栏切「A 群青夕橙」「B 樱粉若叶」</td><td>占位色板、按钮、Logo 底版整体换色，卡片骨架不变（真实图片本身不参与换色）</td></tr>
       </table>
       <h2>🔗 原型连线（Prototype）</h2>
       <ul class="spec-list">
-        <li>NavItem.onTap → 切换对应 Frame（Smart Animate · 200ms · Ease-out）</li>
-        <li>DropZone.onDragOver → 切到 dragging Variant；onDrop → 弹出「上传成功」Toast</li>
+        <li>NavItem.onTap → 切换对应 Frame（Smart Animate · 200ms · Ease-out）；「扫描结果」带计数角标</li>
+        <li>DropZone.onDragOver → 切到 dragging Variant；<b>onDrop（带真实文件）</b> → 走 <code>buildCards(files)</code> 渲染真实图片 + Toast「已读取 N 张图片，勾选后上传」</li>
+        <li>DropZone.onClick → 走 <code>startScan()</code>（无文件）→ 演示照片墙 + Toast「已扫描到 N 张图片」</li>
+        <li>PreviewBar「重置」→ 真实态回收 object URL 并还原演示墙；演示态仅清勾选</li>
         <li>FileCard.onClick → 打开详情浮层（复制外链 / 删除）</li>
         <li>设置页「保存」→ Toast「已保存」</li>
       </ul>
@@ -1251,39 +1316,101 @@ let upTimer=null;
 const DZ_TITLE=dz.querySelector("h2").textContent;
 const DZ_BUSY="🔎 正在扫描图片…";
 // 图区网格引用提前到此处声明：拖放回调（下方）需要读卡片数量刷角标，
-// 而回调虽在 1400ms 后才执行，变量声明仍须先于任何可能的执行路径，避免 TDZ。
+// 而回调虽在延迟后才执行，变量声明仍须先于任何可能的执行路径，避免 TDZ。
 const grid=document.getElementById("previewGrid");
+/* 演示占位墙的 HTML 在启动时快照一次。
+   拖入真实文件会 innerHTML 覆盖掉它，之后点「重置」需要用这份快照还原，
+   不必在 JS 里再抄一遍那 12 张卡片的结构（抄了就会与实际稿渐渐不同步）。 */
+const DEMO_GRID_HTML=grid.innerHTML;
 function logoState(s){
   logo.classList.remove("scanning","uploading");
   if(s) logo.classList.add(s);
 }
 /* 「扫描 → 出结果」的唯一入口。
    拖放、点击扫描区、点击「选择文件 / 粘贴剪贴板」三个入口全部走这里，
-   避免多条路径各自 PRESENT 一套同样的动画与跳转逻辑、日后改一处漏一处。
+   避免多条路径各自演一套同样的动画与跳转逻辑、日后改一处漏一处。
 
-   注意：真实的 file 读取不在本原型范围内（这是 UI 方案稿，不是实现），
-   这里只演示「交互时序」，用时延模拟扫描过程。接入真实逻辑时，
-   把 setTimeout 换成 scanFiles(files) 的 Promise 即可，其余不用动。 */
-function startScan(){
+   files 为空数组＝演示模式（点击触发），沿用 HTML 里的占位卡片；
+   files 非空＝拖入了真实文件，读取并渲染真实图片，照片墙里看到的就是你拖的那些图。 */
+function startScan(files){
   if(upTimer) return;                  // 扫描进行中忽略重复触发
+  const list=(files&&files.length)?files:null;
   logoState("uploading");
-  dz.querySelector("h2").textContent=DZ_BUSY;
+  dz.querySelector("h2").textContent=list?"🔎 正在读取 "+list.length+" 个文件…":DZ_BUSY;
   clearTimeout(upTimer);
   upTimer=setTimeout(()=>{logoState(null);upTimer=null;
     dz.querySelector("h2").textContent=DZ_TITLE;
+    if(list) buildCards(list);                       // 真实文件 → 重建照片墙
+    const n=grid.querySelectorAll(".pv-card").length;
     // 落到「扫描结果」并同步导航高亮 —— 用户此刻确实"在"这个视图，
     // 若只切内容不改高亮，导航会仍指着「上传」，状态就自相矛盾了。
-    const n=grid.querySelectorAll(".pv-card").length;
     showView("preview",{syncNav:true});
-    setNavBadge(n);                    // 角标显示实际扫描数
-    showToast("已扫描到 "+n+" 张图片，勾选后上传");
-  },1400);
+    setNavBadge(n);                                  // 角标显示实际扫描数
+    showToast((list?"已读取 ":"已扫描到 ")+n+" 张图片，勾选后上传");
+  },700);
 }
+
+/* ── 用真实文件重建照片墙 ──
+   ① 只接受 image/*，逐个过体积上限
+   ② objectURL 是本页预览的关键（不必先上传到服务器）
+   ③ 替换前回收旧 URL，否则每次拖入都泄漏一批 blob
+   ④ 图片的宽高比等它就位后回填到 --ar，避免格子先按 1:1 再跳一下 */
+let objectURLs=[];
+const MAX_BYTES=10*1024*1024;           // 与扫描区提示文案「单张 ≤ 10 MB」保持一致
+/* 宽高比夹取范围：竖幅图不高于 3:4，横幅图不宽于 16:9。
+   理由见样式表 .pv-card.real 处的说明 —— 极端比例会把网格拉垮。 */
+const AR_MIN=0.75, AR_MAX=1.78;
+function buildCards(files){
+  releaseURLs();
+  grid.innerHTML="";
+  let skipped=0;
+  files.forEach((f,i)=>{
+    if(!f.type.startsWith("image/")){skipped++;return;}          // 非图片直接略过
+    if(f.size>MAX_BYTES){skipped++;return;}                      // 超限略过
+    const url=URL.createObjectURL(f); objectURLs.push(url);
+    const fig=document.createElement("figure");
+    fig.className="pv-card real";
+    fig.tabIndex=0;
+    // 先给 1:1，图片解码后回填真实比例：避免加载中格子高度跳动
+    fig.style.setProperty("--ar","1");
+    fig.innerHTML=
+      '<div class="ph"><span>'+String(i+1).padStart(2,"0")+'</span>'+
+      '<img alt="'+escapeAttr(f.name)+'"></div>'+
+      '<figcaption class="cap">'+escapeHtml(f.name)+'</figcaption>'+
+      '<span class="check" aria-hidden="true"></span>';
+    const img=fig.querySelector("img");
+    img.addEventListener("load",()=>{
+      if(img.naturalWidth&&img.naturalHeight){
+        // 夹到 [AR_MIN, AR_MAX]：极端竖/横构图会把网格拉得参差不齐
+        const raw=img.naturalWidth/img.naturalHeight;
+        const ar=Math.min(AR_MAX,Math.max(AR_MIN,raw));
+        fig.style.setProperty("--ar",ar.toFixed(3));
+      }
+      fig.classList.add("loaded");      // 隐藏序号水印
+    });
+    img.src=url;                                                  // 先挂 load 再赋 src
+    grid.appendChild(fig);
+  });
+  if(skipped>0) showToast("已跳过 "+skipped+" 个文件（非图片或超过 10 MB）");
+  selCount=0; syncPreviewBar();
+}
+function releaseURLs(){
+  objectURLs.forEach(u=>URL.revokeObjectURL(u));
+  objectURLs=[];
+}
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function escapeAttr(s){ return escapeHtml(s); }
+
 dz.addEventListener("dragover",e=>{e.preventDefault();dz.classList.add("drag");logoState("scanning");
   dz.querySelector("h2").textContent=DZ_BUSY;});
 dz.addEventListener("dragleave",()=>{dz.classList.remove("drag");
   if(!upTimer){logoState(null);dz.querySelector("h2").textContent=DZ_TITLE;}});
-dz.addEventListener("drop",e=>{e.preventDefault();dz.classList.remove("drag");startScan();});
+dz.addEventListener("drop",e=>{
+  e.preventDefault();dz.classList.remove("drag");
+  startScan(Array.from(e.dataTransfer.files||[]));   // 真实文件 → 渲染真实图片
+});
 
 // ── 点击扫描区即可跳转（无需拖文件）──
 // 整个 .dropzone 可点：内部按钮的 click 会冒泡到这里，因此不必逐个按钮绑定。
@@ -1325,8 +1452,17 @@ grid.addEventListener("keydown",e=>{
   if(!card) return;
   e.preventDefault(); card.click();
 });
-// 重置：清空全部勾选
+// 重置：清勾选。若当前墙是真实图片渲染的，则彻底清空并回到演示占位墙
+// ——语义上「重置」应回到初始状态；只想取消勾选就再点一次卡片即可。
 document.getElementById("btnReset").addEventListener("click",()=>{
+  const hasReal=grid.querySelector(".pv-card.real");
+  if(hasReal){
+    releaseURLs();
+    grid.innerHTML=DEMO_GRID_HTML;    // 还原演示占位墙
+    selCount=0; syncPreviewBar(); setNavBadge(grid.querySelectorAll(".pv-card").length);
+    showToast("已清空扫描结果，回到演示视图");
+    return;
+  }
   grid.querySelectorAll(".pv-card.selected").forEach(c=>c.classList.remove("selected"));
   selCount=0; syncPreviewBar();
   showToast("已重置选择");
